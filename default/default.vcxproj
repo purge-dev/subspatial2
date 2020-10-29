@@ -127,6 +127,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="command.cpp" />
+    <ClCompile Include="discord.cpp" />
     <ClCompile Include="spawn.cpp" />
   </ItemGroup>
   <ItemGroup>

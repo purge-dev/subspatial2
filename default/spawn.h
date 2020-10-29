@@ -6,6 +6,7 @@
 #define SPAWN_H
 
 #define STRING_CAST_CHAR
+#define MAININI "discord.ini"
 #include "discord.h"
 
 #include "..\dllcore.h"
@@ -115,6 +116,5 @@ public:
 extern _linkedlist <botInfo> botlist;
 
 botInfo *findBot(CALL_HANDLE handle);
-
 
 #endif	// SPAWN_H

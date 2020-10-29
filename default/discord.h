@@ -2,6 +2,8 @@
 
 #include <aegis.hpp> // Discord library, thanks to Sharon (https://github.com/zeroxs)
 
+std::string getINIString(int type);
+
 class Discord
 {
 public:
@@ -9,7 +11,7 @@ public:
 	{
 		std::thread([=]()
 			{
-				aegis::core bot(aegis::create_bot_t().log_level(spdlog::level::trace).token("NTgwMzMwMTc5ODMxMDA1MjA1.XOPImA.0NXoGMJicfs9hGh3Zmq_0RKzkZA"));
+				aegis::core bot(aegis::create_bot_t().log_level(spdlog::level::trace).token(getINIString(1)));
 
 				// EVENTS:
 				bot.set_on_message_create([](auto obj)
