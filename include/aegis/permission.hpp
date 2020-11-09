@@ -16,8 +16,8 @@
 namespace aegis
 {
 
-/*
-I made this, but then i didn't need it. It is here now, if it becomes needed in the future
+
+//I made this, but then i didn't need it. It is here now, if it becomes needed in the future
 enum permissions : int64_t {
     CREATE_INSTANT_INVITE = 0x00000001,
     KICK_MEMBERS = 0x00000002,
@@ -51,7 +51,7 @@ enum permissions : int64_t {
     MANAGE_WEBHOOKS = 0x20000000,
     MANAGE_EMOJIS = 0x40000000
 };
-*/
+
 
 /// Utility class for permission checks
 class permission

@@ -9,10 +9,11 @@
 #include "..\commtypes.cpp"
 
 #define UNASSIGNED 0xffff
+Cacher cacher{};
 
 
 //////// Bot list ////////
-
+botInfo *merv;
 _linkedlist <botInfo> botlist;
 
 botInfo *findBot(CALL_HANDLE handle)
@@ -24,7 +25,10 @@ botInfo *findBot(CALL_HANDLE handle)
 		botInfo *item = parse->item;
 
 		if (item->validate(handle))
+		{
+			merv = item; // now we can use botInfo globally
 			return item;
+		}
 
 		parse = parse->next;
 	}
@@ -55,14 +59,41 @@ void botInfo::gotEvent(BotEvent &event)
 		{
 			for (int i = 0; i < 4; ++i)
 				--countdown[i];
-			
+
 			// Connect to Discord
-			if (countdown[0] == 0) 
+			if (countdown[0] == 0)
+				std::thread([=]()
+					{startBotProcess(); }).detach();
+			// Update online list
+			if (countdown[1] == 0)
 			{
-				Discord cl;
-				cl.startBotProcess();
+				std::thread([=]()
+					{
+						updateOnlineList();
+
+					}).detach();
+					countdown[1] = 301; // channel updates limited to 2/10 minutes
 			}
-			
+			// Message clean-up
+			/*
+			if (countdown[1] == 0)
+			{
+				std::thread([=]() 
+					{
+						if (cacher.msg_trash_list.size() > 0)
+						{
+							aegis::channel* relayCh = cacher.bot->find_channel(aegis::snowflake::snowflake(cacher.relayChannel));
+							for (int i = 0; i < cacher.msg_trash_list.size(); i++)
+								relayCh->delete_message(cacher.msg_trash_list[i].get_id());
+							cacher.msg_trash_list.clear();
+						}
+						else
+							cacher.bot->create_message((aegis::snowflake)cacher.relayChannel, "zero");
+
+					}).detach();
+					countdown[1] = 5;
+			}
+			*/
 		}
 		break;
 //////// Arena ////////
@@ -71,6 +102,7 @@ void botInfo::gotEvent(BotEvent &event)
 			arena = (char*)event.p[0];
 			me = (Player*)event.p[1];	// if(me) {/*we are in the arena*/}
 			bool biller_online = *(bool*)&event.p[2];
+			cacher.arena = arena;
 		}
 		break;
 	case EVENT_ArenaSettings:
@@ -161,6 +193,14 @@ void botInfo::gotEvent(BotEvent &event)
 	case EVENT_PlayerEntering:
 		{
 			Player *p = (Player*)event.p[0];
+
+			String message = ":inbox_tray: **" + (String)p->name + "** has entered the arena **[" + (String)arena + "]**";
+
+			std::thread([=]()
+				{
+				//	cacher.bot->create_message((aegis::snowflake)cacher.relayChannel, message.msg);
+					curlChatter("Player Connected", message, 9, cacher.relayWebhook);
+				}).detach();
 		}
 		break;
 	case EVENT_PlayerMove:
@@ -233,8 +273,15 @@ void botInfo::gotEvent(BotEvent &event)
 	case EVENT_PlayerLeaving:
 		{
 			Player *p = (Player*)event.p[0];
-
 			killTags(p);
+
+			String message = ":outbox_tray: **" + (String)p->name + "** has left the arena **[" + (String)arena + "]**";
+
+			std::thread([=]()
+				{
+				//	cacher.bot->create_message((aegis::snowflake)cacher.relayChannel, message.msg);
+					curlChatter("Player Disconnected", message, 10, cacher.relayWebhook);
+				}).detach();
 		}
 		break;
 //////// Selfish ////////
@@ -298,6 +345,22 @@ void botInfo::gotEvent(BotEvent &event)
 			{
 			case MSG_Arena:
 				{
+				std::string response = msg;
+				if (response.find("Not online,") != response.npos)
+				{
+					cacher.find = msg;
+				//	countdown[9] = 10;
+				}
+				else if (response.find(" is in SSC") != response.npos || (response.find(" is in arena") != response.npos))
+				{
+					cacher.find = msg;
+				//	countdown[9] = 10;
+				}
+				else if (response.find("Unknown user") != response.npos)
+				{
+					cacher.find = msg;
+				//	countdown[9] = 10;
+				}
 				}
 				break;
 			case MSG_PublicMacro:		if (!p) break;
@@ -305,11 +368,63 @@ void botInfo::gotEvent(BotEvent &event)
 				}
 				break;
 			case MSG_Public:			if (!p) break;
+			{
+				if ((msg[0] == '.') || (msg[0] == '!'))
+					break;
+
+				if (p != me)
 				{
+					String name = p->name;
+					if (p->team > 99) // priv freqs
+						if (p->team == me->team)
+							name = name + " [Spec]";
+						else
+							name = name + " [Private Freq]";
+					else
+						name = name + " [Freq " + (String)p->team + "]";
+					String message = msg;
+
+					if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
+					{
+						for (int i = 0; i < message.len; i++)
+						{
+							if (message.firstInstanceOf('"') > -1) // replace all quotes
+								message.replace('"', '*');
+						}
+					}
+
+					std::thread([=]()
+						{
+							curlChatter(name, message, p->ship, cacher.relayWebhook);
+						}).detach();
 				}
+			}
 				break;
 			case MSG_Team:				if (!p) break;
 				{
+				if ((msg[0] == '.') || (msg[0] == '!'))
+					break;
+
+				if (p != me)
+				{
+					String name = p->name;
+					name = name + " [Spec Chat]";
+					String message = msg;
+
+					if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
+					{
+						for (int i = 0; i < message.len; i++)
+						{
+							if (message.firstInstanceOf('"') > -1) // replace all quotes
+								message.replace('"', '*');
+						}
+					}
+
+					std::thread([=]()
+						{
+							curlChatter(name, message, p->ship, cacher.relayWebhook);
+						}).detach();
+				}
 				}
 				break;
 			case MSG_TeamPrivate:		if (!p) break;
@@ -334,6 +449,38 @@ void botInfo::gotEvent(BotEvent &event)
 				break;
 			case MSG_Channel:
 				{
+				std::string message = msg;
+				std::string twbot = message.substr(2, 7);
+				std::string egbot = message.substr(11, 3);
+				if (strcmp(twbot.c_str(), "TW-Chat") == 0)
+				{
+					std::string output = message.erase(0, 10);
+					std::string pname = output.substr(0, output.find_last_of('>'));
+					std::string chatter = output.substr(output.find_last_of('>') + 1, output.npos);
+					std::string trimmed_name = pname.substr(pname.find_last_of(' ') + 1, pname.npos - pname.find_last_of(' ') + 1);
+
+					if (strcmp("#EG", egbot.c_str()) != 0) // ignore EG->TW relays
+					{
+						if ((chatter.find('"') != chatter.npos) || (chatter.find('@') != chatter.npos)) // quotes/ mess up curl, we should parse them out
+						{
+							for (int i = 0; i < chatter.length(); i++)
+							{
+								if (chatter.find('"') != chatter.npos) // replace all quotes
+									chatter.replace(chatter.find('"'), 1, "*");
+								if (chatter.find('@') != chatter.npos) // prevent tags
+									chatter.replace(chatter.find('@'), 1, "!");
+							}
+						}
+
+						std::thread([=]()
+							{
+								if (isLinked((String)trimmed_name.c_str()))
+									curlChatter((String)pname.c_str() + " \360\237\217\206", (String)chatter.c_str(), 13, cacher.TWSpecWebhook);
+								else
+									curlChatter((String)pname.c_str(), (String)chatter.c_str(), 13, cacher.TWSpecWebhook);
+							}).detach();
+					}
+				}
 				}
 				break;
 			};
@@ -408,6 +555,7 @@ void botInfo::gotEvent(BotEvent &event)
 	case EVENT_Term:
 		{
 			tell(makeEcho("DLL plugin disconnected."));
+			cacher.bot->shutdown();
 		}
 		break;
 	};

@@ -29,8 +29,5 @@
     <ClInclude Include="spawn.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="discord.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

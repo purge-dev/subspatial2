@@ -7,17 +7,28 @@
 
 #define STRING_CAST_CHAR
 #define MAININI "discord.ini"
-#include "discord.h"
+#define BOT_VER "2.0.1"
 
 #include "..\dllcore.h"
 
 #include "..\clientprot.h"
+
+#include <aegis.hpp>
+#include <thread>
+#include <curl/curl.h>
 
 struct PlayerTag
 {
 	Player *p;
 	int index;
 	int data;
+};
+
+struct Cacher
+{
+	std::string token, arena, relayWebhook, TWSpecWebhook, bot_prefix, find;
+	aegis::snowflake relayChannel, serverID, TWSpecChannel, eliteRoleID, mainChannelID, staffRoleID;
+	aegis::core *bot; 
 };
 
 #define MAX_OBJECTS 20
@@ -59,8 +70,8 @@ public:
 		playerlist = 0;
 		flaglist = 0;
 		map = 0;
-		countdown[0] = 5;
-		countdown[1] = 0;
+		countdown[0] = 3; // Discord connection
+		countdown[1] = 10; // online list updater
 		countdown[2] = 0;
 		countdown[3] = 0;
 		CONNECTION_DENIED = false;
@@ -71,6 +82,25 @@ public:
 
 		// Put initial values here
 	}
+
+	// Discord
+	std::vector <std::tuple<std::string, std::string, bool>> cooldown; // cooldown stored as userID, command string, timer
+	std::string getFreqPlayerNames(int team);
+	std::pair<int, int> countPlayers(); // returns total in zone, spec
+	std::vector <std::string> hash;
+
+	bool onCooldown(std::string cmd, std::string usrID);
+	void startCooldown(std::string cmd, std::string usrID, int timer);
+	void grantDiscordElite(std::string discordID);
+	void linkAccount(Player* p, String discordID);
+	bool isLinked(String ssName);
+	bool isLinked(std::string discordID);
+	void updateOnlineList();
+	void curlChatter(String name, String msg, int ship, std::string channelhook);
+	void startBotProcess();
+	std::string getINIString(int type);
+	void loadCache();
+	//
 
 	void clear_objects();
 	void object_target(Player *p);
@@ -114,6 +144,8 @@ public:
 // some entries may no longer exist.
 
 extern _linkedlist <botInfo> botlist;
+extern botInfo *merv;
+extern Cacher cacher;
 
 botInfo *findBot(CALL_HANDLE handle);
 
