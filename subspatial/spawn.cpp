@@ -10,7 +10,7 @@
 
 #define UNASSIGNED 0xffff
 Cacher cacher{};
-
+CacheLists list{};
 
 //////// Bot list ////////
 botInfo *merv;
@@ -36,6 +36,283 @@ botInfo *findBot(CALL_HANDLE handle)
 	return 0;
 }
 
+//////// DISCORD ////////
+std::string botInfo::getINIString(int type)
+{
+	std::string val;
+	char path[MAX_PATH], key[128];
+	GetCurrentDirectory(MAX_PATH, path);
+	sprintf_s(path, "%s\\%s", path, MAININI);
+
+	if (type == 1) // token
+	{
+		GetPrivateProfileString("Client", "Token", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 2) // relay channelID
+	{
+		GetPrivateProfileString("Channels", "Relay", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 3) // relay webhook 
+	{
+		GetPrivateProfileString("Webhooks", "Relay", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 4) // serverID
+	{
+		GetPrivateProfileString("Client", "ServerID", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 5) // TWSpec webhook
+	{
+		GetPrivateProfileString("Webhooks", "TWSpec", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 6) // TWSpec relay channel 
+	{
+		GetPrivateProfileString("Channels", "TWSpec", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 7)
+	{
+		GetPrivateProfileString("Client", "EliteRoleID", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 8)
+	{
+		GetPrivateProfileString("Client", "MainChannelID", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 9)
+	{
+		GetPrivateProfileString("Client", "StaffRoleID", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 10)
+	{
+		GetPrivateProfileString("Webhooks", "SpamAd", "", key, 128, path);
+		val = key;
+	}
+	return val;
+}
+
+bool botInfo::onCooldown(std::string cmd, std::string usrID)
+{
+	if (cooldown.size() == 0) return false;
+	bool exists = false;
+
+	for (int i = 0; i < cooldown.size(); i++)
+		if (std::get<0>(cooldown[i]) == usrID && std::get<1>(cooldown[i]) == cmd)
+			if (std::get<2>(cooldown[i]))
+				return true;
+
+	return exists;
+}
+
+void botInfo::startCooldown(std::string cmd, std::string usrID, int timer)
+{
+	std::thread([=]()
+		{
+			bool exists = false;
+
+			for (int i = 0; i < cooldown.size(); i++)
+				if (std::get<0>(cooldown[i]) == usrID && std::get<1>(cooldown[i]) == cmd) // local entry already exists
+				{
+					std::get<2>(cooldown[i]) = true;
+					exists = true;
+				}
+
+			if (!exists)
+				cooldown.push_back(std::make_tuple(usrID, cmd, true));
+
+			std::this_thread::sleep_for(std::chrono::seconds(timer));
+
+			for (int j = 0; j < cooldown.size(); j++)
+				if (std::get<0>(cooldown[j]) == usrID && std::get<1>(cooldown[j]) == cmd)
+				{
+					cooldown.pop_back(); // remove entry from memory
+				//	std::get<2>(cooldown[j]) = false;
+					return;
+				}
+		}).detach();
+}
+
+bool botInfo::CMPnSTART(const char* constant, const char* control) // ripped from Catid =)
+{
+	char c;
+
+	while (c = *control)
+	{
+		if (tolower(*constant) != tolower(c)) // but is now case-insensitive
+			return false;
+
+		++control;
+		++constant;
+	}
+
+	return true;
+}
+
+std::pair<int, int> botInfo::countPlayers(int teams)
+{
+	std::pair<int, int> zone0_spec1(0, 0);
+	_listnode <Player>* parse = playerlist->head;
+	while (parse)
+	{
+		Player* jib = parse->item;
+
+		if (jib != me)
+		{
+			if (teams == 0)
+			{
+				if (jib->ship == 8)
+					zone0_spec1.second++;
+				zone0_spec1.first++;
+			}
+			else
+			{
+				if (jib->team == 0)
+					zone0_spec1.first++;
+				else if (jib->team == 1)
+					zone0_spec1.second++;
+			}
+		}
+		parse = parse->next;
+	}
+	return zone0_spec1;
+}
+
+bool botInfo::cmdHasParam(std::string command)
+{
+	if (command.find_first_of(" ") == command.npos) // not found
+		return false;
+	else
+		return true;
+}
+
+std::string botInfo::cmdGetParam(std::string command)
+{
+	size_t delim = command.find_first_of(" ");
+	std::string param = command.substr(delim, command.npos);
+	param.erase(0, 1); // remove the space
+
+	return param;
+}
+
+bool botInfo::isMuted(String pname)
+{
+	for (int i = 0; i < list.muted.size(); i++)
+		if (CMPSTR(list.muted[i].c_str(), pname))
+			return true;
+	return false;
+}
+
+bool botInfo::isIgnored(String pname)
+{
+	for (int i = 0; i < list.ignored.size(); i++)
+		if (CMPSTR(list.ignored[i].c_str(), pname))
+			return true;
+	return false;
+}
+
+std::string botInfo::getFreqPlayerNames(int team) // TODO: create a player badge system
+{ 
+	std::string ship_emoji[9] =
+	{ "<:wb:402887584675659777> ", "<:jav:775302178788868128> ", "<:spid:402887979363860490> ", "<:lev:402888842115547157> ", "<:terr:402887992861261825> ",
+		"<:weasel:775301956326522880> ", "<:lanc:402887962909474816> ", "<:sha:775301826827780117> ", "<:spec:775658736114335755> " };
+	std::string res;
+
+	_listnode <Player>* parse = playerlist->head;
+	while (parse)
+	{
+		Player* jib = parse->item;
+
+		if (!isIgnored((String)jib->name))
+		{
+			if (team == -1) // spectators
+			{
+				if (jib->ship == 8)
+				{
+					if (isLinked((String)jib->name))
+					{
+						if (isStaff((aegis::snowflake)getKnownAccount(jib->name))) // Linked discord staff
+						{
+							if (CMPSTR((String)jib->name, "tm_master"))
+								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\221 \360\237\217\206 \n");
+							else if (CMPSTR((String)jib->name, "Purge"))
+								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\233\240 \360\237\221\224 \360\237\217\206 \n");
+							else
+								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\224 \360\237\217\206 \n");
+						}
+						else
+							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\217\206 \n");
+					}
+					else
+						if (CMPSTR((String)jib->name, (String)me->name))
+							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\244\226 \n");
+						else if (CMPSTR((String)jib->name, "tm_master"))
+							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\221 \n");
+						else
+							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + "\n");
+				}
+			}
+			else if (team == jib->team)
+			{
+				if (isLinked((String)jib->name))
+				{
+					if (isStaff((aegis::snowflake)getKnownAccount(jib->name))) // Linked discord staff
+					{
+						if (CMPSTR((String)jib->name, "tm_master"))
+							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\221 \360\237\217\206 \n");
+						else if (CMPSTR((String)jib->name, "Purge"))
+							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\233\240 \360\237\221\224 \360\237\217\206 \n");
+						else
+							if (CMPSTR((String)jib->name, "Purge"))
+								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\233\240 \360\237\217\206 \n");
+							else
+								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\224 \360\237\217\206 \n");
+					}
+					else
+						res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\217\206 \n");
+				}
+				else
+					if (CMPSTR((String)jib->name, (String)me->name))
+						res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\244\226 \n");
+					else if (CMPSTR((String)jib->name, "tm_master"))
+						res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\221 \n");
+					else
+						res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + "\n");
+			}	
+		}
+		parse = parse->next;
+	}
+	return res;
+}
+
+Player* botInfo::findPlayerByName(char* name) // case insensitive + partial names accepted
+{
+	Player* found = NULL;
+	_listnode <Player>* parse = playerlist->head;
+	while (parse)
+	{
+		Player* p = parse->item;
+
+		if (CMPnSTART((String)p->name, (String)name)) // found
+			found = p;
+
+		parse = parse->next;
+	}
+	return found;
+}
+
+std::string botInfo::getMutedPlayers()
+{
+	std::string res;
+	for (int i = 0; i < list.muted.size(); i++)
+		res.append(list.muted[i] + ", ");
+	return res;
+}
 
 //////// DLL "import" ////////
 
@@ -57,7 +334,7 @@ void botInfo::gotEvent(BotEvent &event)
 //////// Periodic ////////
 	case EVENT_Tick:
 		{
-			for (int i = 0; i < 4; ++i)
+			for (int i = 0; i < 6; ++i)
 				--countdown[i];
 
 			// Connect to Discord
@@ -73,6 +350,15 @@ void botInfo::gotEvent(BotEvent &event)
 
 					}).detach();
 					countdown[1] = 301; // channel updates limited to 2/10 minutes
+			}
+			// Clear PM handles
+			if (countdown[2] == 0)
+			{
+				std::thread([=]()
+					{
+						clearDMhandles();
+					}).detach();
+					countdown[2] = 300;
 			}
 			// Message clean-up
 			/*
@@ -347,20 +633,11 @@ void botInfo::gotEvent(BotEvent &event)
 				{
 				std::string response = msg;
 				if (response.find("Not online,") != response.npos)
-				{
 					cacher.find = msg;
-				//	countdown[9] = 10;
-				}
 				else if (response.find(" is in SSC") != response.npos || (response.find(" is in arena") != response.npos))
-				{
 					cacher.find = msg;
-				//	countdown[9] = 10;
-				}
 				else if (response.find("Unknown user") != response.npos)
-				{
 					cacher.find = msg;
-				//	countdown[9] = 10;
-				}
 				}
 				break;
 			case MSG_PublicMacro:		if (!p) break;
@@ -374,29 +651,35 @@ void botInfo::gotEvent(BotEvent &event)
 
 				if (p != me)
 				{
-					String name = p->name;
-					if (p->team > 99) // priv freqs
-						if (p->team == me->team)
-							name = name + " [Spec]";
-						else
-							name = name + " [Private Freq]";
-					else
-						name = name + " [Freq " + (String)p->team + "]";
-					String message = msg;
-
-					if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
+					if (!isMuted((String)p->name)) // do not relay muted players
 					{
-						for (int i = 0; i < message.len; i++)
-						{
-							if (message.firstInstanceOf('"') > -1) // replace all quotes
-								message.replace('"', '*');
-						}
-					}
+						std::string name = p->name;
+						if (p->team > 99) // priv freqs
+							if (p->team == me->team)
+								name = name + " [Spec]";
+							else
+								name = name + " [Private Freq]";
+						else
+							name = name + " [Freq " + std::to_string(p->team) + "]";
+						String message = msg;
 
-					std::thread([=]()
-						{
-							curlChatter(name, message, p->ship, cacher.relayWebhook);
-						}).detach();
+						if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
+							for (int i = 0; i < message.len; i++)
+								if (message.firstInstanceOf('"') > -1) // replace all quotes
+									message.replace('"', '*');
+
+						std::thread([=]()
+							{
+								std::string final_name = name; // needs to be copied to new string since new thread
+								if (isLinked((String)p->name))
+								{
+									final_name.append(" \360\237\217\206");
+									curlChatter(final_name.c_str(), message, p->ship, cacher.relayWebhook);
+								}
+								else
+									curlChatter(final_name.c_str(), message, p->ship, cacher.relayWebhook);
+							}).detach();
+					}
 				}
 			}
 				break;
@@ -407,23 +690,29 @@ void botInfo::gotEvent(BotEvent &event)
 
 				if (p != me)
 				{
-					String name = p->name;
-					name = name + " [Spec Chat]";
-					String message = msg;
-
-					if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
+					if (!isMuted((String)p->name)) // do not relay muted players
 					{
-						for (int i = 0; i < message.len; i++)
-						{
-							if (message.firstInstanceOf('"') > -1) // replace all quotes
-								message.replace('"', '*');
-						}
-					}
+						std::string name = p->name;
+						name = name + " [Spec Chat]";
+						String message = msg;
 
-					std::thread([=]()
-						{
-							curlChatter(name, message, p->ship, cacher.relayWebhook);
-						}).detach();
+						if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
+							for (int i = 0; i < message.len; i++)
+								if (message.firstInstanceOf('"') > -1) // replace all quotes
+									message.replace('"', '*');
+
+						std::thread([=]()
+							{
+								std::string final_name = name; // needs to be copied to new string since new thread
+								if (isLinked((String)p->name))
+								{
+									final_name.append(" \360\237\217\206");
+									curlChatter(final_name.c_str(), message, p->ship, cacher.relayWebhook);
+								}
+								else
+									curlChatter(final_name.c_str(), message, p->ship, cacher.relayWebhook);
+							}).detach();
+					}
 				}
 				}
 				break;
@@ -433,6 +722,33 @@ void botInfo::gotEvent(BotEvent &event)
 				break;
 			case MSG_Private:			if (!p) break;
 				{
+				if (msg[0] == '@') // CROSS PMs
+				{
+					if (!isMuted((String)p->name)) // do not relay muted players
+					{
+						String name = p->name;
+						String message = msg;
+
+						if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
+							for (int i = 0; i < message.len; i++)
+								if (message.firstInstanceOf('"') > -1) // replace all quotes
+									message.replace('"', '*');
+
+						if (isLinked(name))
+						{
+							std::thread([=]()
+								{
+									std::string out = message.msg;
+									out.append(" $~$@" + name);
+
+									if (!DM2Discord(out))
+										sendPrivate(p, "That user was not found on Discord. Please check your spelling!");
+								}).detach();
+						}
+						else
+							sendPrivate(p, "PMing users on Discord via Continuum requires an Elite account. Please use !help link for more info.");
+					}
+				}
 				}
 				break;
 			case MSG_PlayerWarning:		if (!p) break;

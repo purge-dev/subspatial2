@@ -6,8 +6,10 @@
 #define SPAWN_H
 
 #define STRING_CAST_CHAR
-#define MAININI "discord.ini"
-#define BOT_VER "2.0.1"
+#define MAININI "discord\\config\\discord.ini"
+#define LISTINI "discord\\data\\lists.dat"
+#define ELITEINI "discord\\data\\elite.dat"
+#define BOT_VER "2.0.2" // always keep 5 chars
 
 #include "..\dllcore.h"
 
@@ -26,9 +28,16 @@ struct PlayerTag
 
 struct Cacher
 {
-	std::string token, arena, relayWebhook, TWSpecWebhook, bot_prefix, find;
+	std::string token, arena, relayWebhook, TWSpecWebhook, spamHook, bot_prefix, find;
 	aegis::snowflake relayChannel, serverID, TWSpecChannel, eliteRoleID, mainChannelID, staffRoleID;
 	aegis::core *bot; 
+};
+
+struct CacheLists
+{
+	std::vector <std::string> muted,                           // stores muted Continuum player names
+		ignored;                                               // stores ignored names for online list
+	std::vector <std::pair<aegis::snowflake, std::string>>	elite; // stores elite tier players' usr flakes + Continuum names 
 };
 
 #define MAX_OBJECTS 20
@@ -58,7 +67,7 @@ class botInfo
 	int num_objects;
 	Player *object_dest;
 
-	int countdown[4];
+	int countdown[6];
 
 	// Put bot data here
 
@@ -70,10 +79,11 @@ public:
 		playerlist = 0;
 		flaglist = 0;
 		map = 0;
-		countdown[0] = 3; // Discord connection
-		countdown[1] = 10; // online list updater
-		countdown[2] = 0;
+		countdown[0] = 8; // Discord connection
+		countdown[1] = 30; // online list updater
+		countdown[2] = 300; // priv_msg handle cleanup
 		countdown[3] = 0;
+		countdown[4] = 0;
 		CONNECTION_DENIED = false;
 		me = 0;
 		biller_online = true;
@@ -83,12 +93,24 @@ public:
 		// Put initial values here
 	}
 
-	// Discord
+	/////// DISCORD ///////
+	std::vector <std::tuple<aegis::snowflake, aegis::snowflake, std::string>> priv_msg; // channel id, discord id, recipient string
 	std::vector <std::tuple<std::string, std::string, bool>> cooldown; // cooldown stored as userID, command string, timer
 	std::string getFreqPlayerNames(int team);
-	std::pair<int, int> countPlayers(); // returns total in zone, spec
+	std::pair<int, int> countPlayers(int teams = 0); // returns total in zone, spec by default; freq 0/1 if > 0
 	std::vector <std::string> hash;
-
+	std::string getElitePairStrings();
+	
+	void unlinkAccount(std::string discordID);
+	std::string getMutedPlayers();
+	Player* findPlayerByName(char* name);
+	bool isIgnored(String pname);
+	bool isMuted(String pname);
+	void loadLists(int type);
+	void clearDMhandles();
+	void DM2Game(String recipient, String msg);
+	bool isStaff(aegis::snowflake usrID);
+	bool DM2Discord(std::string out);
 	bool onCooldown(std::string cmd, std::string usrID);
 	void startCooldown(std::string cmd, std::string usrID, int timer);
 	void grantDiscordElite(std::string discordID);
@@ -96,11 +118,19 @@ public:
 	bool isLinked(String ssName);
 	bool isLinked(std::string discordID);
 	void updateOnlineList();
+	bool CMPnSTART(const char* constant, const char* control);
 	void curlChatter(String name, String msg, int ship, std::string channelhook);
 	void startBotProcess();
+	aegis::user* getUser(std::string usrname);
+	aegis::user* getUser(char* usrname);
+	void relayChat(std::string user, std::string msg, int zone);
 	std::string getINIString(int type);
+	std::string getKnownAccount(std::string discordID);
+	std::string getKnownAccount(char* pname);
+	std::string cmdGetParam(std::string command);
+	bool cmdHasParam(std::string command);
 	void loadCache();
-	//
+	/////// END-DISCORD ///////
 
 	void clear_objects();
 	void object_target(Player *p);
@@ -144,8 +174,11 @@ public:
 // some entries may no longer exist.
 
 extern _linkedlist <botInfo> botlist;
+/////// DISCORD ///////
 extern botInfo *merv;
 extern Cacher cacher;
+extern CacheLists list;
+/////// END-DISCORD ///////
 
 botInfo *findBot(CALL_HANDLE handle);
 

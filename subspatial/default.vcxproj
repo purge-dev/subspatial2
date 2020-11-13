@@ -48,7 +48,7 @@
     <LinkIncremental>true</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>.\Release\</OutDir>
+    <OutDir>.\Release</OutDir>
     <IntDir>.\Release</IntDir>
     <LinkIncremental>false</LinkIncremental>
     <IncludePath>C:\Users\BLACKBOX\Documents\Code\aegis-bot\aegis.cpp-template\aegis.cpp\include;C:\Users\BLACKBOX\Documents\Code\aegis-bot\aegis.cpp-template\aegis.cpp\lib;C:\Users\BLACKBOX\Documents\Code\aegis-bot\aegis.cpp-template\aegis.cpp\lib\json\include;C:\Users\BLACKBOX\Documents\Code\aegis-bot\aegis.cpp-template\aegis.cpp\lib\asio\asio\include;C:\Users\BLACKBOX\Documents\Code\aegis-bot\aegis.cpp-template\aegis.cpp\lib\spdlog\include;C:\Users\BLACKBOX\Documents\Code\aegis-bot\aegis.cpp-template\aegis.cpp\lib\websocketpp;C:\Users\BLACKBOX\Documents\Code\vcpkg\installed\x86-windows\include;C:\Users\BLACKBOX\Documents\Code\vcpkg\packages\zlib_x86-windows\include;C:\Users\BLACKBOX\Documents\Code\curl\include;$(IncludePath)</IncludePath>
@@ -130,6 +130,7 @@
   <ItemGroup>
     <ClCompile Include="command.cpp" />
     <ClCompile Include="discord.cpp" />
+    <ClCompile Include="events.cpp" />
     <ClCompile Include="spawn.cpp" />
   </ItemGroup>
   <ItemGroup>
