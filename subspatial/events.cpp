@@ -204,17 +204,63 @@ void botInfo::startBotProcess()
 							bot.create_message(obj.msg.get_channel_id(), ":warning: **Slow down!** There is a 10 second cooldown until you can use this command again.");
 						else
 						{
-							std::thread([=]()
+
+							if (cacher.find.size() == 0)
+							{
+								merv->sendPublic("?find " + (String)cmdGetParam(obj.msg.get_content()).c_str());
+								std::this_thread::sleep_for(std::chrono::seconds(3));
+								std::string name, status, type;
+								using aegis::create_message_t;
+								using aegis::gateway::objects::embed;
+								using aegis::gateway::objects::field;
+								using aegis::gateway::objects::thumbnail;
+								using aegis::gateway::objects::footer;
+
+								
+								if (CMPSTART(cacher.find.c_str(), "Not online"))
 								{
-									if (cacher.find.size() == 0)
+									name = cmdGetParam(obj.msg.get_content());
+									type = "Offline";
+									status = "Last Seen " + cacher.find.substr(cacher.find.find(" last seen "), cacher.find.npos -
+										cacher.find.find(" last seen "));
+								}
+								else
+								{
+									name = cacher.find.substr(0, cacher.find.find(" is in"));
+									if (cacher.find.find(" is in arena") != cacher.find.npos)
 									{
-										merv->sendPublic("?find " + (String)cmdGetParam(obj.msg.get_content()).c_str());
-										std::this_thread::sleep_for(std::chrono::seconds(3));
-										cacher.bot->create_message(obj.msg.get_channel_id(), cacher.find);
-										cacher.find.clear();
+										type = "Arena";
+										status = cacher.find.substr(cacher.find.find(" is in arena "), cacher.find.npos -
+											cacher.find.find(" is in arena "));
 									}
-								}).detach();
-								startCooldown("find", obj.msg.author.id.gets(), 10);
+									else
+									{
+										type = "Zone";
+										status = cacher.find.substr(cacher.find.find(" is in "), cacher.find.npos -
+											cacher.find.find(" is in "));
+									}
+									//	cacher.bot->create_message(obj.msg.get_channel_id(), cacher.find);
+								}
+
+								cacher.bot->find_channel(obj.channel)->create_message(create_message_t()
+									.embed(
+										embed()
+										.color(0xFF0000).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+										.title("\360\237\232\200 Continuum User Lookup").url("https://store.steampowered.com/app/352700")
+										.description(type)
+										.fields
+										({
+											field().name(type).value(type)
+											})
+										.footer(footer("The following lookup was done by " + std::string(me->name) + " on the SSC network."))
+									)
+								);
+
+								bot.create_message(obj.channel, name + ":" + type + ":" + status);
+								cacher.find.clear();
+							}
+
+							startCooldown("find", obj.msg.author.id.gets(), 10);
 						}
 					}
 				}

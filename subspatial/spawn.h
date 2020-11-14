@@ -11,9 +11,9 @@
 #define ELITEINI "discord\\data\\elite.dat"
 #define BOT_VER "2.0.2" // always keep 5 chars
 
-#include "..\dllcore.h"
+#include "..\mervbot\dllcore.h"
 
-#include "..\clientprot.h"
+#include "..\mervbot\clientprot.h"
 
 #include <aegis.hpp>
 #include <thread>

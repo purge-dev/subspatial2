@@ -1,12 +1,12 @@
 #include "spawn.h"
 
-#include "..\algorithms.h"
+#include "..\mervbot\algorithms.h"
 
-#include "..\dllcore.cpp"
-#include "..\datatypes.cpp"
-#include "..\algorithms.cpp"
-#include "..\player.cpp"
-#include "..\commtypes.cpp"
+#include "..\mervbot\dllcore.cpp"
+#include "..\mervbot\datatypes.cpp"
+#include "..\mervbot\algorithms.cpp"
+#include "..\mervbot\player.cpp"
+#include "..\mervbot\commtypes.cpp"
 
 #define UNASSIGNED 0xffff
 Cacher cacher{};
@@ -633,11 +633,11 @@ void botInfo::gotEvent(BotEvent &event)
 				{
 				std::string response = msg;
 				if (response.find("Not online,") != response.npos)
-					cacher.find = msg;
+					cacher.find = response;
 				else if (response.find(" is in SSC") != response.npos || (response.find(" is in arena") != response.npos))
-					cacher.find = msg;
+					cacher.find = response;
 				else if (response.find("Unknown user") != response.npos)
-					cacher.find = msg;
+					cacher.find = response;
 				}
 				break;
 			case MSG_PublicMacro:		if (!p) break;

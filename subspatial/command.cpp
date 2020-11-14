@@ -1,6 +1,6 @@
 #include "spawn.h"
 
-#include "..\algorithms.h"
+#include "..\mervbot\algorithms.h"
 
 void botInfo::gotHelp(Player *p, Command *c)
 {
