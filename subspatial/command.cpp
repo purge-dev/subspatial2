@@ -21,28 +21,40 @@ void botInfo::gotHelp(Player *p, Command *c)
 			{	// Owner-level commands
 //				sendPrivate(p, "Ext: ");
 			}
-			break;
+//			break;
 		case OP_SysOp:
 			{	// SysOp-level commands
 //				sendPrivate(p, "Ext: ");
 			}
-			break;
+//			break;
 		case OP_SuperModerator:
 			{	// SuperModerator-level commands
 //				sendPrivate(p, "Ext: ");
 			}
-			break;
+//			break;
 		case OP_Moderator:
 			{	// Moderator-level commands
-//				sendPrivate(p, "Ext: ");
+			sendPrivate(p, "----------------------------------------------------");
+			sendPrivate(p, "|           [Subspatial | Staff Commands]          |");
+			sendPrivate(p, "----------------------------------------------------");
+			sendPrivate(p, "| Config:     !read          (refreshes settings)  |");
+			sendPrivate(p, "| Moderation: !mute/unmute   (Continuum players)   |");
+			sendPrivate(p, "|             !dmute/dunmute (Discord users)       |");
+			sendPrivate(p, "|             !listelite/listmute                  |");
 			}
-			break;
+//			break;
 		case OP_Limited:
 			{	// Limited-level commands
 			}
 		case OP_Player:
 			{	// Player-level commands
-				sendPrivate(p, "!about (query me about my function)");
+			sendPrivate(p, "------ [Subspatial v" + (String)BOT_VER + "] -------------------------------------------");
+			sendPrivate(p, "| Account:   !link/unlink    (binds your Discord/Continuum handles)  |");
+			sendPrivate(p, "|            !elite     [*]  (shows available Elite tier perks)      |");
+			sendPrivate(p, "| Game:      !spam      [*]  (pings Discord to search for players)   |");
+			sendPrivate(p, "|            !extra          (calls for more players)                |");
+			sendPrivate(p, "| [*] Requires an Elite account. Type !link for more information.    |");
+			sendPrivate(p, "----------------------------------------------------- [by Purge] ----");
 			}
 		}
 
@@ -83,9 +95,22 @@ void botInfo::gotHelp(Player *p, Command *c)
 		}
 	case OP_Moderator:
 		{	// Moderator-level commands
-			if (c->checkParam("mod") || c->checkParam("all"))
+			if (c->checkParam("read"))
 			{
-//				sendPrivate(p, "Ext: ");
+				sendPrivate(p, "[SYNTAX: !read] Refreshes all bot config and data files relevant to Subspatial. Only useful in troubleshooting.");
+			}
+			else if (c->checkParam("dmute") || c->checkParam("dunmute"))
+			{
+				sendPrivate(p, "[SYNTAX: !dmute/dunmute <DiscordName>] Mutes a Discord user from chatting in Continuum by USERNAME (partial names allowed).");
+			}
+			else if (c->checkParam("mute") || c->checkParam("unmute") || c->checkParam("listmute"))
+			{
+				sendPrivate(p, "[SYNTAX: !mute/unmute <PlayerName>] Mutes a Continuum player's chat relays to Discord (partial names allowed).");
+				sendPrivate(p, "[SYNTAX: !listmute]                 Lists all muted players in Continuum.");
+			}
+			else if (c->checkParam("listelite"))
+			{
+				sendPrivate(p, "[SYNTAX: !listelite] Lists all registered Elite users according to (DiscordID:ContinuumName).");
 			}
 		}
 	case OP_Limited:
@@ -93,11 +118,31 @@ void botInfo::gotHelp(Player *p, Command *c)
 		}
 	case OP_Player:
 		{	// Player-level commands
-			if (c->checkParam("about"))
-			{
-				sendPrivate(p, "!about (query me about my function)");
-			}
+		if (c->checkParam("link") || c->checkParam("elite"))
+		{
+			sendPrivate(p, "----------------------------------------------------------");
+			sendPrivate(p, "|                      Elite Tier                        |");
+			sendPrivate(p, "----------------------------------------------------------");
+			sendPrivate(p, "| Linking your accounts will unlock Elite Tier, a free   |");
+			sendPrivate(p, "| premium pass for additional game modes & functionality!|");
+			sendPrivate(p, "----------------------------------------------------------");
+			sendPrivate(p, "| Step 1: Login to Discord and type --link in main chat  |");
+			sendPrivate(p, "| Step 2: Open your DMs and copy the code from Subspatial|");
+			sendPrivate(p, "| Step 3: Login to Continuum and PM me with !link <code> |");
+			sendPrivate(p, "----------------------------------------------------------");
+			sendPrivate(p, "| Type !elite to see all available perks. Have fun!      |");
+			sendPrivate(p, "----------------------------------------------------------");
 		}
+		else if (c->checkParam("unlink"))
+		{
+			sendPrivate(p, "[SYNTAX: !unlink <DiscordID>] Unlinks your Discord/Continuum handles. This action is irreversible, and all Elite tier perks will be lost. To unlock Elite tier again, you will have to !link again.");
+		}
+		else if (c->checkParam("spam") || c->checkParam("extra"))
+		{
+			sendPrivate(p, "[SYNTAX: !spam] Pings a notifiable role on Discord calling for players to join your game. Requires Elite tier.");
+			sendPrivate(p, "[SYNTAX: !extra] Calls for additional players to enter the game on both Discord and chat channels.");
+		}
+	}
 	}
 }
 
@@ -130,13 +175,13 @@ void botInfo::gotCommand(Player *p, Command *c)
 		{
 			std::thread([=]()
 				{
-					loadCache();
-					loadLists(0);
-					loadLists(1);
-					loadLists(2);
+					_cache.loadCache();
+					_cache.loadLists(0);
+					_cache.loadLists(1);
+					_cache.loadLists(2);
 				}).detach();
 
-				sendPrivate(p, "Reloaded new settings from " + (String)MAININI + " and " + (String)LISTINI);
+				sendPrivate(p, "Reloaded new settings from " + (String)MAININI + " and data files.");
 		}
 		else if (c->check("dmute"))
 		{
@@ -151,7 +196,7 @@ void botInfo::gotCommand(Player *p, Command *c)
 					aegis::user* usr = getUser(c->final);
 					using aegis::edit_channel_permissions_t;
 
-					auto reply = cacher.bot->find_channel(cacher.relayChannel)->edit_channel_permissions(edit_channel_permissions_t()
+					auto reply = _cache.discord.bot->find_channel(_cache.discord.flakes.relayChannel)->edit_channel_permissions(edit_channel_permissions_t()
 						.overwrite_id(usr->get_id()).allow(aegis::permissions::VIEW_CHANNEL).deny(aegis::permissions::SEND_MESSAGES).type("1"));
 					sendPrivate(p, (String)c->final + " has been muted from the Discord relay channel. Use !dunmute to unmute him/her.");
 				}
@@ -170,7 +215,7 @@ void botInfo::gotCommand(Player *p, Command *c)
 				{
 					aegis::user* usr = getUser(c->final);
 					using aegis::edit_channel_permissions_t;
-					auto reply = cacher.bot->find_channel(cacher.relayChannel)->delete_channel_permission(usr->get_id());
+					auto reply = _cache.discord.bot->find_channel(_cache.discord.flakes.relayChannel)->delete_channel_permission(usr->get_id());
 
 					if (reply.get().reply_code == 400)
 						sendPrivate(p, "That user is not currently muted. Please check your spelling!");
@@ -199,7 +244,7 @@ void botInfo::gotCommand(Player *p, Command *c)
 						sprintf_s(path, "%s\\%s", path, LISTINI);
 						WritePrivateProfileString("Muted", "^" + (String)mut->name, "^$mut", path);
 						sendPrivate(p, (String)mut->name + " has been muted and will no longer have his/her messages relayed to Discord.");
-						loadLists(0);
+						_cache.loadLists(0);
 					}
 				}
 			}
@@ -219,7 +264,7 @@ void botInfo::gotCommand(Player *p, Command *c)
 					sprintf_s(path, "%s\\%s", path, LISTINI);
 					WritePrivateProfileString("Muted", "^" + (String)c->final, NULL, path);
 					sendPrivate(p, (String)c->final + " has been unmuted.");
-					loadLists(0);
+					_cache.loadLists(0);
 				}
 			}
 		}
@@ -238,12 +283,6 @@ void botInfo::gotCommand(Player *p, Command *c)
 			sendPrivate(p, "---------------------------------------------------");
 			sendPrivate(p, (String)getElitePairStrings().c_str());
 			sendPrivate(p, "---------------------------------------------------");
-		}
-		else if (c->check("acc"))
-		{
-		String pname = p->name;
-		sendPrivate(p, (String)getKnownAccount(std::string("310006046381047808")).c_str());
-		sendPrivate(p, (String)getKnownAccount(p->name).c_str());
 		}
 	}
 	case OP_Limited:
@@ -269,8 +308,8 @@ void botInfo::gotCommand(Player *p, Command *c)
 					sendPrivate(p, "Someone recently used !spam. You must wait " + (String)((countdown[3] / 60) % 60) + " minutes.");
 				else
 				{
-					String msg = "<@&509789987060056074> Calling all pilots to ?go " + (String)arena + " for a game! Enter now to play.";
-					std::thread([=]() { curlChatter((String)p->name, msg, p->ship, cacher.spamHook); }).detach();
+					String msg = "<@&509789987060056074> Calling all pilots to **?go " + (String)arena + "** for a game! Enter now to play.";
+					std::thread([=]() { curlChatter((String)p->name, msg, p->ship, _cache.discord.spamHook); }).detach();
 					
 					sendChannel(";" + (String)p->name + " is calling all available pilots to ?go " + (String)arena + " for a game! Enter now to play.");
 					sendChannel(";2;" + (String)p->name + " is calling all available pilots to ?go " + (String)arena + " for a game! Enter now to play.");
@@ -290,8 +329,8 @@ void botInfo::gotCommand(Player *p, Command *c)
 				sendPrivate(p, "Someone recently used !extra. You must wait " + (String)((countdown[5] / 60) % 60) + " minutes.");
 			else
 			{
-				String msg = "More pilots are needed in ?go " + (String)arena + "! Current matchup: " + (String)countPlayers(1).first + " vs " + (String)countPlayers(1).second;
-				std::thread([=]() { curlChatter("More Players Needed!", msg, p->ship, cacher.spamHook); }).detach();
+				String msg = "More pilots are needed in **?go " + (String)arena + "**! Current matchup: " + (String)countPlayers(1).first + " vs " + (String)countPlayers(1).second;
+				std::thread([=]() { curlChatter("More Players Needed!", msg, p->ship, _cache.discord.spamHook); }).detach();
 				
 				sendChannel(";" + msg);
 				sendChannel(";2;" + msg);
@@ -299,70 +338,70 @@ void botInfo::gotCommand(Player *p, Command *c)
 				countdown[4] = 300;
 			}
 		}
-			else if (c->check("link"))
+		else if (c->check("link"))
+		{
+			if (!*c->final)
 			{
-				if (!*c->final)
+				sendPrivate(p, "----------------------------------------------------------");
+				sendPrivate(p, "| LINKING DISCORD AND CONTINUUM ACCOUNTS - ELITE TIER    |");
+				sendPrivate(p, "----------------------------------------------------------");
+				sendPrivate(p, "| Linking your accounts will unlock Elite Tier, a free   |");
+				sendPrivate(p, "| premium pass for additional game modes & functionality!|");
+				sendPrivate(p, "----------------------------------------------------------");
+				sendPrivate(p, "| Step 1: Login to Discord and type --link in main chat  |");
+				sendPrivate(p, "| Step 2: Open your DMs and copy the code the bot sent   |");
+				sendPrivate(p, "| Step 3: Login to Continuum and PM " + (String)me->name);
+				sendPrivate(p, "|         with !link <code>                              |");
+				sendPrivate(p, "----------------------------------------------------------");
+				sendPrivate(p, "| Type !elite to see all available perks. Have fun!      |");
+				sendPrivate(p, "----------------------------------------------------------");
+			}
+			else
+			{
+				String ar = c->final;
+				String check = ar;
+				if (ar.len < 7)
 				{
-					sendPrivate(p, "----------------------------------------------------------");
-					sendPrivate(p, "| LINKING DISCORD AND CONTINUUM ACCOUNTS - ELITE TIER    |");
-					sendPrivate(p, "----------------------------------------------------------");
-					sendPrivate(p, "| Linking your accounts will unlock Elite Tier, a free   |");
-					sendPrivate(p, "| premium pass for additional game modes & functionality!|");
-					sendPrivate(p, "----------------------------------------------------------");
-					sendPrivate(p, "| Step 1: Login to Discord and type --link in main chat  |");
-					sendPrivate(p, "| Step 2: Open your DMs and copy the code the bot sent   |");
-					sendPrivate(p, "| Step 3: Login to Continuum and PM " + (String)me->name);
-					sendPrivate(p, "|         with !link <code>                              |");
-					sendPrivate(p, "----------------------------------------------------------");
-					sendPrivate(p, "| Type !elite to see all available perks. Have fun!      |");
-					sendPrivate(p, "----------------------------------------------------------");
+					sendPrivate(p, "You have entered an incorrect code. Please try again or use --link to refresh the code on Discord.");
+					break;
 				}
-				else
+				else if (ar.len > 7)
+					check = ar.trim(); // remove all spaces
+
+				bool valid = false;
+
+				if (hash.size() > 0) // are there any outstanding codes to claim?
 				{
-					String ar = c->final;
-					String check = ar;
-					if (ar.len < 7)
+					for (int i = 0; i < hash.size(); i++) // recv'd string format: grEgxvW@usrid
 					{
-						sendPrivate(p, "You have entered an incorrect code. Please try again or use --link to refresh the code on Discord.");
-						break;
-					}
-					else if (ar.len > 7)
-						check = ar.trim(); // remove all spaces
+						size_t delim = hash[i].find_first_of("@");
+						std::string hash_test = hash[i].substr(0, delim);
 
-					bool valid = false;
-
-					if (hash.size() > 0) // are there any outstanding codes to claim?
-					{
-						for (int i = 0; i < hash.size(); i++) // recv'd string format: grEgxvW@usrid
+						if (strcmp(hash_test.c_str(), check) == 0) // valid code given
 						{
-							size_t delim = hash[i].find_first_of("@");
-							std::string hash_test = hash[i].substr(0, delim);
-
-							if (strcmp(hash_test.c_str(), check) == 0) // valid code given
+							if (!isLinked((String)p->name))
 							{
-								if (!isLinked((String)p->name))
-								{
-									std::string dName = hash[i].substr(delim, hash[i].npos - delim); // dName = usrid
-									dName.erase(0, 1);   // remove the @
+								std::string dName = hash[i].substr(delim, hash[i].npos - delim); // dName = usrid
+								dName.erase(0, 1);   // remove the @
 
-									sendPrivate(p, SND_Ahhhh, "Congratulations! You have unlocked the Elite Tier by linking your Continuum account to Discord. Type !elite to see available perks.");
-									linkAccount(p, (String)dName.c_str()); // write to file
-									std::thread([=](){ grantDiscordElite(dName); }).detach();
-									hash[i].clear(); // remove this code from global vector 
-									valid = true;
-									break; // no need to keep cycling
-								}
-								else
-									sendPrivate(p, "This Continuum account is already registered on Discord! Type --unlink in Discord if you wish to link another account.");
+								sendPrivate(p, SND_Ahhhh, "Congratulations! You have unlocked the Elite Tier by linking your Continuum account to Discord. Type !elite to see available perks.");
+								linkAccount(p, (String)dName.c_str()); // write to file
+								std::thread([=]() { grantDiscordElite(dName); }).detach();
+								hash[i].clear(); // remove this code from global vector 
+								valid = true;
+								break; // no need to keep cycling
 							}
+							else
+								sendPrivate(p, "This Continuum account is already registered on Discord! Type --unlink in Discord if you wish to link another account.");
 						}
 					}
-					if (!valid)
-						sendPrivate(p, "You have entered an incorrect code. Please try again or use --link to refresh the code on Discord.");
 				}
+				if (!valid)
+					sendPrivate(p, "You have entered an incorrect code. Please try again or use --link to refresh the code on Discord.");
 			}
-			else if (c->check("unlink"))
-			{
+		}
+		else if (c->check("unlink"))
+		{
 			if (!*c->final)
 			{
 				sendPrivate(p, "WARNING: You are about to unlink your Discord/Continuum handles! Doing so will forfeit all Elite tier privileges. To confirm, type !unlink <DiscordID>.");
@@ -371,11 +410,50 @@ void botInfo::gotCommand(Player *p, Command *c)
 			else
 			{
 				if (strcmp(getKnownAccount(p->name).c_str(), c->final) == 0) // valid ID given
+				{
 					std::thread([=]() { unlinkAccount(getKnownAccount(p->name)); }).detach();
-				sendPrivate(p, "Your Discord/Continuum accounts have been unlinked, and your Elite tier status has been revoked.");
-			}
+					sendPrivate(p, "Your Discord/Continuum accounts have been unlinked, and your Elite tier status has been revoked.");
+				}
+				else
+					sendPrivate(p, "That DiscordID is not linked to this account. Please try again later.");
 			}
 		}
+		else if (c->check("elite"))
+		{
+		sendPrivate(p, "-----------------------------------------------------");
+		sendPrivate(p, "| Elite Tier Perks:                                 |");
+		sendPrivate(p, "-----------------------------------------------------");
+		sendPrivate(p, "| Features:                                         |");
+		sendPrivate(p, "|         Mentions (begin sentence with @Username)  |");
+		sendPrivate(p, "|         Cross platform PM (PM me @DiscordName msg)|");
+		sendPrivate(p, "|         Subspace-wide chat via Discord            |");
+		sendPrivate(p, "|         Custom Role/Color (use --role in Discord) |");
+		sendPrivate(p, "|         Epic RPG (idle metagame)                  |");
+		sendPrivate(p, "| Commands:                                         |");
+		sendPrivate(p, "|         !np   (check what's playing in #music)    |");
+		sendPrivate(p, "|         !skip (requests DJ to skip current song)  |");
+		sendPrivate(p, "|         !spam (role pings Discord users to play)  |");
+		sendPrivate(p, "|         !epic/!e (displays your Epic RPG stats)   |");
+		sendPrivate(p, "-----------------------------------------------------");
+		}
+
+		//////// ECONOMY ////////
+
+		else if (c->check("openaccount"))
+		{
+			if (isLinked((String)p->name))
+			{
+				Economy eco;
+				if (eco.getPlayerScrap(p) == -1) // new users
+				{
+					sendPrivate(p, "[Bank of Subspatial] Thank you for your interest in opening a scrap (SCR) account! We are currently offering the following rates:");
+					sendPrivate(p, "[Savings: " + (String)(_cache.economy.savings_rate * 100) + "%] +Unlimited access to your scrap balance for any trades/personal investments.");
+					sendPrivate(p, "[Performance: " + (String)(_cache.economy.performance_rate * 100) + "%] +");
+				}
+				else;
+			}
+		}
+	}
 	}
 }
 

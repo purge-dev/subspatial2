@@ -130,11 +130,13 @@
   <ItemGroup>
     <ClCompile Include="command.cpp" />
     <ClCompile Include="discord.cpp" />
+    <ClCompile Include="economy.cpp" />
     <ClCompile Include="events.cpp" />
     <ClCompile Include="spawn.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="spawn.h" />
+    <ClInclude Include="updater.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

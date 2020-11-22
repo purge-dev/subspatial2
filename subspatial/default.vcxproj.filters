@@ -27,9 +27,15 @@
     <ClCompile Include="events.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="economy.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="spawn.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="updater.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

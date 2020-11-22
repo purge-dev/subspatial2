@@ -9,8 +9,7 @@
 #include "..\mervbot\commtypes.cpp"
 
 #define UNASSIGNED 0xffff
-Cacher cacher{};
-CacheLists list{};
+Cachedump _cache{};
 
 //////// Bot list ////////
 botInfo *merv;
@@ -37,6 +36,14 @@ botInfo *findBot(CALL_HANDLE handle)
 }
 
 //////// DISCORD ////////
+int botInfo::randomizer(int range)
+{
+	std::random_device rd;
+	std::mt19937 mt(rd());
+	std::uniform_real_distribution<double> dist(0, std::nextafter(range, DBL_MAX));
+	return dist(mt);
+}
+
 std::string botInfo::getINIString(int type)
 {
 	std::string val;
@@ -92,6 +99,21 @@ std::string botInfo::getINIString(int type)
 	else if (type == 10)
 	{
 		GetPrivateProfileString("Webhooks", "SpamAd", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 11)
+	{
+		GetPrivateProfileString("Webhooks", "TWSpecMainDiscord", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 12)
+	{
+		GetPrivateProfileString("Webhooks", "DevaMainDiscord", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 13)
+	{
+		GetPrivateProfileString("Channels", "Updater", "", key, 128, path);
 		val = key;
 	}
 	return val;
@@ -202,16 +224,16 @@ std::string botInfo::cmdGetParam(std::string command)
 
 bool botInfo::isMuted(String pname)
 {
-	for (int i = 0; i < list.muted.size(); i++)
-		if (CMPSTR(list.muted[i].c_str(), pname))
+	for (int i = 0; i < _cache.discord.elite.muted.size(); i++)
+		if (CMPSTR(_cache.discord.elite.muted[i].c_str(), pname))
 			return true;
 	return false;
 }
 
 bool botInfo::isIgnored(String pname)
 {
-	for (int i = 0; i < list.ignored.size(); i++)
-		if (CMPSTR(list.ignored[i].c_str(), pname))
+	for (int i = 0; i < _cache.discord.elite.ignored.size(); i++)
+		if (CMPSTR(_cache.discord.elite.ignored[i].c_str(), pname))
 			return true;
 	return false;
 }
@@ -309,8 +331,8 @@ Player* botInfo::findPlayerByName(char* name) // case insensitive + partial name
 std::string botInfo::getMutedPlayers()
 {
 	std::string res;
-	for (int i = 0; i < list.muted.size(); i++)
-		res.append(list.muted[i] + ", ");
+	for (int i = 0; i < _cache.discord.elite.muted.size(); i++)
+		res.append(_cache.discord.elite.muted[i] + ", ");
 	return res;
 }
 
@@ -345,41 +367,16 @@ void botInfo::gotEvent(BotEvent &event)
 			if (countdown[1] == 0)
 			{
 				std::thread([=]()
-					{
-						updateOnlineList();
-
-					}).detach();
-					countdown[1] = 301; // channel updates limited to 2/10 minutes
+					{updateOnlineList();}).detach();
+					countdown[1] = 301; // TODO: make dynamic updates for ratelimits
 			}
 			// Clear PM handles
 			if (countdown[2] == 0)
 			{
 				std::thread([=]()
-					{
-						clearDMhandles();
-					}).detach();
+					{clearDMhandles();}).detach();
 					countdown[2] = 300;
 			}
-			// Message clean-up
-			/*
-			if (countdown[1] == 0)
-			{
-				std::thread([=]() 
-					{
-						if (cacher.msg_trash_list.size() > 0)
-						{
-							aegis::channel* relayCh = cacher.bot->find_channel(aegis::snowflake::snowflake(cacher.relayChannel));
-							for (int i = 0; i < cacher.msg_trash_list.size(); i++)
-								relayCh->delete_message(cacher.msg_trash_list[i].get_id());
-							cacher.msg_trash_list.clear();
-						}
-						else
-							cacher.bot->create_message((aegis::snowflake)cacher.relayChannel, "zero");
-
-					}).detach();
-					countdown[1] = 5;
-			}
-			*/
 		}
 		break;
 //////// Arena ////////
@@ -388,7 +385,9 @@ void botInfo::gotEvent(BotEvent &event)
 			arena = (char*)event.p[0];
 			me = (Player*)event.p[1];	// if(me) {/*we are in the arena*/}
 			bool biller_online = *(bool*)&event.p[2];
-			cacher.arena = arena;
+			_cache.game.arena = arena;
+
+			sendPublic("?zone");
 		}
 		break;
 	case EVENT_ArenaSettings:
@@ -485,7 +484,8 @@ void botInfo::gotEvent(BotEvent &event)
 			std::thread([=]()
 				{
 				//	cacher.bot->create_message((aegis::snowflake)cacher.relayChannel, message.msg);
-					curlChatter("Player Connected", message, 9, cacher.relayWebhook);
+					curlChatter("Player Connected", message, 9, _cache.discord.relayWebhook);
+					curlChatter("Player Connected", message, 9, _cache.discord.DevaMainDiscordWebhook);
 				}).detach();
 		}
 		break;
@@ -509,6 +509,7 @@ void botInfo::gotEvent(BotEvent &event)
 			wi.n = *(Uint16*)&event.p[2];
 			Uint16 energy = *(Uint16*)&event.p[3];
 			Uint16 damage = *(Uint16*)&event.p[4];
+			
 		}
 		break;
 	case EVENT_PlayerDeath:
@@ -566,7 +567,8 @@ void botInfo::gotEvent(BotEvent &event)
 			std::thread([=]()
 				{
 				//	cacher.bot->create_message((aegis::snowflake)cacher.relayChannel, message.msg);
-					curlChatter("Player Disconnected", message, 10, cacher.relayWebhook);
+					curlChatter("Player Disconnected", message, 10, _cache.discord.relayWebhook);
+					curlChatter("Player Disconnected", message, 10, _cache.discord.DevaMainDiscordWebhook);
 				}).detach();
 		}
 		break;
@@ -632,12 +634,20 @@ void botInfo::gotEvent(BotEvent &event)
 			case MSG_Arena:
 				{
 				std::string response = msg;
+
+				// collects ?find output
 				if (response.find("Not online,") != response.npos)
-					cacher.find = response;
+					_cache.discord.find = response;
 				else if (response.find(" is in SSC") != response.npos || (response.find(" is in arena") != response.npos))
-					cacher.find = response;
+					_cache.discord.find = response;
 				else if (response.find("Unknown user") != response.npos)
-					cacher.find = response;
+					_cache.discord.find = response;
+				
+				// collects ?zone output
+				if (CMPSTART("SSC", response.c_str())) // subgame
+					_cache.game.zone = response;
+				else if (CMPSTART("Zone: ", response.c_str())) // asss
+					_cache.game.zone = response.substr(6, response.npos - 6);
 				}
 				break;
 			case MSG_PublicMacro:		if (!p) break;
@@ -648,6 +658,8 @@ void botInfo::gotEvent(BotEvent &event)
 			{
 				if ((msg[0] == '.') || (msg[0] == '!'))
 					break;
+
+				if (countdown[0] > 0) break; // wait till it loads cache to avoid curl errors
 
 				if (p != me)
 				{
@@ -668,16 +680,24 @@ void botInfo::gotEvent(BotEvent &event)
 								if (message.firstInstanceOf('"') > -1) // replace all quotes
 									message.replace('"', '*');
 
+						if (message.firstInstanceOf('@') > -1) // user mentions
+							if (isLinked((String)p->name))
+								message = createUserMentionString(message.msg).c_str();
+
 						std::thread([=]()
 							{
-								std::string final_name = name; // needs to be copied to new string since new thread
+								std::string final_name = name; 
 								if (isLinked((String)p->name))
 								{
 									final_name.append(" \360\237\217\206");
-									curlChatter(final_name.c_str(), message, p->ship, cacher.relayWebhook);
+									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
+									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook); // relay to official SS discord
 								}
 								else
-									curlChatter(final_name.c_str(), message, p->ship, cacher.relayWebhook);
+								{
+									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
+									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook);
+								}
 							}).detach();
 					}
 				}
@@ -687,6 +707,7 @@ void botInfo::gotEvent(BotEvent &event)
 				{
 				if ((msg[0] == '.') || (msg[0] == '!'))
 					break;
+				if (countdown[0] > 0) break;
 
 				if (p != me)
 				{
@@ -700,17 +721,25 @@ void botInfo::gotEvent(BotEvent &event)
 							for (int i = 0; i < message.len; i++)
 								if (message.firstInstanceOf('"') > -1) // replace all quotes
 									message.replace('"', '*');
-
+						
+						if (message.firstInstanceOf('@') > -1) // user mentions
+							if (isLinked((String)p->name))
+								message = createUserMentionString(message.msg).c_str();
+								
 						std::thread([=]()
 							{
-								std::string final_name = name; // needs to be copied to new string since new thread
+								std::string final_name = name; 
 								if (isLinked((String)p->name))
 								{
 									final_name.append(" \360\237\217\206");
-									curlChatter(final_name.c_str(), message, p->ship, cacher.relayWebhook);
+									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
+									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook);
 								}
 								else
-									curlChatter(final_name.c_str(), message, p->ship, cacher.relayWebhook);
+								{
+									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
+									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook);
+								}
 							}).detach();
 					}
 				}
@@ -722,20 +751,22 @@ void botInfo::gotEvent(BotEvent &event)
 				break;
 			case MSG_Private:			if (!p) break;
 				{
+				if (countdown[0] > 0) break;
+
 				if (msg[0] == '@') // CROSS PMs
 				{
-					if (!isMuted((String)p->name)) // do not relay muted players
+					String name = p->name;
+					if (isLinked(name))
 					{
-						String name = p->name;
-						String message = msg;
+						if (!isMuted(name)) // do not relay muted players
+						{	
+							String message = msg;
 
-						if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
-							for (int i = 0; i < message.len; i++)
-								if (message.firstInstanceOf('"') > -1) // replace all quotes
-									message.replace('"', '*');
+							if (message.firstInstanceOf('"') > -1) // quotes mess up curl, we should parse them out
+								for (int i = 0; i < message.len; i++)
+									if (message.firstInstanceOf('"') > -1) // replace all quotes
+										message.replace('"', '*');
 
-						if (isLinked(name))
-						{
 							std::thread([=]()
 								{
 									std::string out = message.msg;
@@ -745,9 +776,9 @@ void botInfo::gotEvent(BotEvent &event)
 										sendPrivate(p, "That user was not found on Discord. Please check your spelling!");
 								}).detach();
 						}
-						else
-							sendPrivate(p, "PMing users on Discord via Continuum requires an Elite account. Please use !help link for more info.");
 					}
+					else
+						sendPrivate(p, "PMing users on Discord via Continuum requires an Elite account. Please use !help link for more info.");
 				}
 				}
 				break;
@@ -765,15 +796,16 @@ void botInfo::gotEvent(BotEvent &event)
 				break;
 			case MSG_Channel:
 				{
+				if (countdown[0] > 0) break;
 				std::string message = msg;
 				std::string twbot = message.substr(2, 7);
 				std::string egbot = message.substr(11, 3);
 				if (strcmp(twbot.c_str(), "TW-Chat") == 0)
 				{
 					std::string output = message.erase(0, 10);
-					std::string pname = output.substr(0, output.find_last_of('>'));
-					std::string chatter = output.substr(output.find_last_of('>') + 1, output.npos);
-					std::string trimmed_name = pname.substr(pname.find_last_of(' ') + 1, pname.npos - pname.find_last_of(' ') + 1);
+					std::string pname = output.substr(0, output.find_first_of('>')); // account for users with > in name
+					std::string chatter = output.substr(output.find_first_of('>') + 1, output.npos); // get the chatter accounting for users with > in name
+					std::string trimmed_name = pname.substr(pname.find_first_of(' ') + 1, pname.npos - pname.find_first_of(' ') + 1);
 
 					if (strcmp("#EG", egbot.c_str()) != 0) // ignore EG->TW relays
 					{
@@ -791,9 +823,11 @@ void botInfo::gotEvent(BotEvent &event)
 						std::thread([=]()
 							{
 								if (isLinked((String)trimmed_name.c_str()))
-									curlChatter((String)pname.c_str() + " \360\237\217\206", (String)chatter.c_str(), 13, cacher.TWSpecWebhook);
+									curlChatter((String)pname.c_str() + " \360\237\217\206", (String)chatter.c_str(), 13, _cache.discord.TWSpecWebhook);
 								else
-									curlChatter((String)pname.c_str(), (String)chatter.c_str(), 13, cacher.TWSpecWebhook);
+									curlChatter((String)pname.c_str(), (String)chatter.c_str(), 13, _cache.discord.TWSpecWebhook);
+
+								curlChatter((String)pname.c_str(), (String)chatter.c_str(), 13, _cache.discord.TWSpecMainDiscordWebhook); // relay to official SS Discord
 							}).detach();
 					}
 				}
@@ -871,7 +905,7 @@ void botInfo::gotEvent(BotEvent &event)
 	case EVENT_Term:
 		{
 			tell(makeEcho("DLL plugin disconnected."));
-			cacher.bot->shutdown();
+			_cache.discord.bot->shutdown();
 		}
 		break;
 	};
