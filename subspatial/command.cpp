@@ -198,7 +198,11 @@ void botInfo::gotCommand(Player *p, Command *c)
 
 					auto reply = _cache.discord.bot->find_channel(_cache.discord.flakes.relayChannel)->edit_channel_permissions(edit_channel_permissions_t()
 						.overwrite_id(usr->get_id()).allow(aegis::permissions::VIEW_CHANNEL).deny(aegis::permissions::SEND_MESSAGES).type("1"));
-					sendPrivate(p, (String)c->final + " has been muted from the Discord relay channel. Use !dunmute to unmute him/her.");
+
+					if (reply.get().reply_code == 400)
+						sendPrivate(p, "Unknown error when attempting to mute: " + (String)usr->get_username().c_str() + ". Please check bot permissions!");
+					else
+						sendPrivate(p, (String)usr->get_username().c_str() + " has been muted from the Discord relay channel. Use !dunmute to unmute him/her.");
 				}
 
 			}
@@ -218,9 +222,9 @@ void botInfo::gotCommand(Player *p, Command *c)
 					auto reply = _cache.discord.bot->find_channel(_cache.discord.flakes.relayChannel)->delete_channel_permission(usr->get_id());
 
 					if (reply.get().reply_code == 400)
-						sendPrivate(p, "That user is not currently muted. Please check your spelling!");
+						sendPrivate(p, (String)usr->get_username().c_str() + " is not currently muted. Please check your spelling!");
 					else
-						sendPrivate(p, (String)c->final + " has been unmuted from the Discord relay channel.");
+						sendPrivate(p, (String)usr->get_username().c_str() + " has been unmuted from the Discord relay channel.");
 				}
 			}
 		}
@@ -294,8 +298,8 @@ void botInfo::gotCommand(Player *p, Command *c)
 		{
 			sendPrivate(p, "------ [Subspatial v" + (String)BOT_VER + "] -------------------------------------------");
 			sendPrivate(p, "| FEATURES: Discord-Continuum cross-platform chat                    |");
-			sendPrivate(p, "|           Post-game statistics beautification                      |");
-			sendPrivate(p, "|           Epic RPG Discord Metagame                                |");
+			sendPrivate(p, "|           Automated Player Performance Profiles                    |");
+			sendPrivate(p, "|           Dynamic & Evolving Economy                               |");
 			sendPrivate(p, "|           Premium User perks via Elite Tier account binding        |");
 			sendPrivate(p, "| For more information: https://github.com/purge-dev                 |");
 			sendPrivate(p, "----------------------------------------------------- [by Purge] ----");
@@ -319,7 +323,7 @@ void botInfo::gotCommand(Player *p, Command *c)
 			}
 			else
 			{
-				sendPrivate(p, "This command is only available to Elite accounts. Please login to Discord and PM @Subspatial with --link to unlock the Elite Tier!");
+				sendPrivate(p, "This command is only available to Elite accounts. Please login to Discord and DM @Subspatial with --link to unlock Elite Tier!");
 				sendPrivate(p, "[NOTE] You may use !extra if you do not wish to link your Discord/Continuum accounts.");
 			}
 		}
@@ -387,7 +391,7 @@ void botInfo::gotCommand(Player *p, Command *c)
 								sendPrivate(p, SND_Ahhhh, "Congratulations! You have unlocked the Elite Tier by linking your Continuum account to Discord. Type !elite to see available perks.");
 								linkAccount(p, (String)dName.c_str()); // write to file
 								std::thread([=]() { grantDiscordElite(dName); }).detach();
-								hash[i].clear(); // remove this code from global vector 
+								hash.erase(hash.begin() + i); // remove this code from global vector 
 								valid = true;
 								break; // no need to keep cycling
 							}
@@ -415,7 +419,7 @@ void botInfo::gotCommand(Player *p, Command *c)
 					sendPrivate(p, "Your Discord/Continuum accounts have been unlinked, and your Elite tier status has been revoked.");
 				}
 				else
-					sendPrivate(p, "That DiscordID is not linked to this account. Please try again later.");
+					sendPrivate(p, "That DiscordID is not linked to this account. Please check your ID again!");
 			}
 		}
 		else if (c->check("elite"))
@@ -424,16 +428,14 @@ void botInfo::gotCommand(Player *p, Command *c)
 		sendPrivate(p, "| Elite Tier Perks:                                 |");
 		sendPrivate(p, "-----------------------------------------------------");
 		sendPrivate(p, "| Features:                                         |");
-		sendPrivate(p, "|         Mentions (begin sentence with @Username)  |");
+		sendPrivate(p, "|         Mentions (include @Username in any chat)  |");
 		sendPrivate(p, "|         Cross platform PM (PM me @DiscordName msg)|");
 		sendPrivate(p, "|         Subspace-wide chat via Discord            |");
 		sendPrivate(p, "|         Custom Role/Color (use --role in Discord) |");
-		sendPrivate(p, "|         Epic RPG (idle metagame)                  |");
 		sendPrivate(p, "| Commands:                                         |");
 		sendPrivate(p, "|         !np   (check what's playing in #music)    |");
 		sendPrivate(p, "|         !skip (requests DJ to skip current song)  |");
 		sendPrivate(p, "|         !spam (role pings Discord users to play)  |");
-		sendPrivate(p, "|         !epic/!e (displays your Epic RPG stats)   |");
 		sendPrivate(p, "-----------------------------------------------------");
 		}
 

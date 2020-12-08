@@ -111,11 +111,6 @@ std::string botInfo::getINIString(int type)
 		GetPrivateProfileString("Webhooks", "DevaMainDiscord", "", key, 128, path);
 		val = key;
 	}
-	else if (type == 13)
-	{
-		GetPrivateProfileString("Channels", "Updater", "", key, 128, path);
-		val = key;
-	}
 	return val;
 }
 
@@ -153,7 +148,7 @@ void botInfo::startCooldown(std::string cmd, std::string usrID, int timer)
 			for (int j = 0; j < cooldown.size(); j++)
 				if (std::get<0>(cooldown[j]) == usrID && std::get<1>(cooldown[j]) == cmd)
 				{
-					cooldown.pop_back(); // remove entry from memory
+					cooldown.erase(cooldown.begin() + j); // remove entry from memory
 				//	std::get<2>(cooldown[j]) = false;
 					return;
 				}
@@ -377,6 +372,13 @@ void botInfo::gotEvent(BotEvent &event)
 					{clearDMhandles();}).detach();
 					countdown[2] = 300;
 			}
+			/*// Auto-updates
+			if (countdown[5] == 0)
+			{
+				std::thread([=]()
+					{_cache.discord.updateBot(); }).detach();
+				countdown[5] = 3600;
+			}*/
 		}
 		break;
 //////// Arena ////////
@@ -483,7 +485,6 @@ void botInfo::gotEvent(BotEvent &event)
 
 			std::thread([=]()
 				{
-				//	cacher.bot->create_message((aegis::snowflake)cacher.relayChannel, message.msg);
 					curlChatter("Player Connected", message, 9, _cache.discord.relayWebhook);
 					curlChatter("Player Connected", message, 9, _cache.discord.DevaMainDiscordWebhook);
 				}).detach();
@@ -566,7 +567,6 @@ void botInfo::gotEvent(BotEvent &event)
 
 			std::thread([=]()
 				{
-				//	cacher.bot->create_message((aegis::snowflake)cacher.relayChannel, message.msg);
 					curlChatter("Player Disconnected", message, 10, _cache.discord.relayWebhook);
 					curlChatter("Player Disconnected", message, 10, _cache.discord.DevaMainDiscordWebhook);
 				}).detach();
@@ -633,14 +633,26 @@ void botInfo::gotEvent(BotEvent &event)
 			{
 			case MSG_Arena:
 				{
+				
 				std::string response = msg;
+				
+				// collects ?usage output; TODO: subgame contexts
+				if (CMPSTART("session:", response.c_str()))
+				{
+					String untrimmed_res = response.substr(response.find("session:") + 9, response.npos - response.find("session:") + 9).c_str();
+					_cache.statistics.bot_uptime = untrimmed_res.trim().msg;
+				}
+
+				// collects ?uptime output; TODO: subgame contexts
+				if (CMPSTART("This server has been online for", response.c_str()))
+					_cache.statistics.zone_uptime = response.substr(response.find("for") + 4, response.npos - response.find("for") + 4);
 
 				// collects ?find output
 				if (response.find("Not online,") != response.npos)
 					_cache.discord.find = response;
-				else if (response.find(" is in SSC") != response.npos || (response.find(" is in arena") != response.npos))
+				if (response.find(" is in SSC") != response.npos || (response.find(" is in arena") != response.npos))
 					_cache.discord.find = response;
-				else if (response.find("Unknown user") != response.npos)
+				if (response.find("Unknown user") != response.npos)
 					_cache.discord.find = response;
 				
 				// collects ?zone output
@@ -648,6 +660,72 @@ void botInfo::gotEvent(BotEvent &event)
 					_cache.game.zone = response;
 				else if (CMPSTART("Zone: ", response.c_str())) // asss
 					_cache.game.zone = response.substr(6, response.npos - 6);
+			
+				// SSCJ Devastation Baseduel Results Parser:
+				if (countdown[0] > 0) break;
+
+				if (!strcmp(msg, "Team [1]1 Wins!"))
+					_cache.game.winner_msg = "Freq 1 Wins";
+				else if (!strcmp(msg, "Team [0]0 Wins!"))
+					_cache.game.winner_msg = "Freq 0 Wins";
+				
+				if (msg[0] == '|')
+				{
+					if ((msg[3] == 'P') && (msg[23] == 'K') && (msg[30] == 'L')) // parse out heading line
+					{
+					}
+					else if ((msg[11] == '_') && (msg[12] == ',') && (msg[13] == '.')) // parse out
+					{
+					}
+					else if ((msg[20] == '+') && (msg[11] == '-') && (msg[12] == '-')) // parse out
+					{
+					}
+					else if ((msg[1] == '[') && (msg[2] == '0') && (msg[3] == ']')) // team 0 K/L
+						_cache.game.freq0_score = parseFreqBDStats(response);
+					else if ((msg[1] == '[') && (msg[2] == '1') && (msg[3] == ']')) // team 1 K/L
+						_cache.game.freq1_score = parseFreqBDStats(response);
+					else // player K/L
+						parsePlayerBDStats(response); // outputs per player
+				}
+				
+				if (CMPSTART("Game time:", response.c_str()))
+					_cache.game.game_time = response.substr(response.find("Game time:") + 11, response.npos - response.find("Game time:") + 11);
+				if (CMPSTART("Added New History result:", response.c_str()))
+					_cache.game.history_log = response.substr(response.find("Added New History result:") + 26, response.find(" Type") - response.find("Added New History result:") - 26);
+
+				if (isBDVictory(response)) // output the collected results table as an embed
+				{
+					std::thread([=]()
+						{
+							std::this_thread::sleep_for(std::chrono::seconds(5)); // allow enough time to collect the stats
+							using aegis::create_message_t;
+							using aegis::gateway::objects::embed;
+							using aegis::gateway::objects::field;
+							using aegis::gateway::objects::thumbnail;
+
+							aegis::gateway::objects::footer foot; foot.icon_url = "https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"; foot.text = "Subspatial v" + (std::string)BOT_VER + " | Created by Purge";
+							aegis::gateway::objects::image img; img.url = _cache.game.snapshots[randomizer(_cache.game.snapshots.size())];
+							
+							_cache.discord.bot->find_channel(_cache.discord.flakes.relayChannel)->create_message(
+								create_message_t()
+								.embed(
+									embed()
+									.color((CMPSTART("Freq 1", _cache.game.winner_msg.c_str()) ? 0x0000FF : 0xFF0000)).thumbnail(thumbnail("https://cdn.discordapp.com/emojis/588304373801680904.gif"))
+									.title(_cache.game.winner_msg + " (" + _cache.game.game_time + ")").url("https://store.steampowered.com/app/352700")
+									.description("\360\237\222\245 **FINAL SCORE:** " + _cache.game.game_score.first + " - " + _cache.game.game_score.second + " \360\237\222\245\n``Baseduel History Log: #" + _cache.game.history_log + "``")
+									.fields
+									({
+										field().name("Freq 0 (K - L)").value(((getBDPlayersAndScores(0) != "") ? "```css\n" + getBDPlayersAndScores(0) + "\n```" : "```css\n[ERROR]\n```")).is_inline(true),
+
+										field().name("Freq 1 (K - L)").value(((getBDPlayersAndScores(1) != "") ? "```css\n" + getBDPlayersAndScores(1) + "\n```" : "```css\n[ERROR]\n```")).is_inline(true)
+
+										})
+									.image(img)
+									.footer(foot)
+								)
+							);							
+						}).detach();
+				}
 				}
 				break;
 			case MSG_PublicMacro:		if (!p) break;
@@ -687,17 +765,12 @@ void botInfo::gotEvent(BotEvent &event)
 						std::thread([=]()
 							{
 								std::string final_name = name; 
+
 								if (isLinked((String)p->name))
-								{
 									final_name.append(" \360\237\217\206");
-									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
-									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook); // relay to official SS discord
-								}
-								else
-								{
-									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
-									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook);
-								}
+
+								curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
+								curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook);
 							}).detach();
 					}
 				}
@@ -730,16 +803,10 @@ void botInfo::gotEvent(BotEvent &event)
 							{
 								std::string final_name = name; 
 								if (isLinked((String)p->name))
-								{
 									final_name.append(" \360\237\217\206");
-									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
-									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook);
-								}
-								else
-								{
-									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
-									curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook);
-								}
+
+								curlChatter(final_name.c_str(), message, p->ship, _cache.discord.relayWebhook);
+								curlChatter(final_name.c_str(), message, p->ship, _cache.discord.DevaMainDiscordWebhook);
 							}).detach();
 					}
 				}
@@ -774,6 +841,8 @@ void botInfo::gotEvent(BotEvent &event)
 
 									if (!DM2Discord(out))
 										sendPrivate(p, "That user was not found on Discord. Please check your spelling!");
+									else
+										sendPrivate(p, "Direct Message successfully sent. Awaiting reply.");
 								}).detach();
 						}
 					}
@@ -796,44 +865,10 @@ void botInfo::gotEvent(BotEvent &event)
 				break;
 			case MSG_Channel:
 				{
-				if (countdown[0] > 0) break;
-				std::string message = msg;
-				std::string twbot = message.substr(2, 7);
-				std::string egbot = message.substr(11, 3);
-				if (strcmp(twbot.c_str(), "TW-Chat") == 0)
-				{
-					std::string output = message.erase(0, 10);
-					std::string pname = output.substr(0, output.find_first_of('>')); // account for users with > in name
-					std::string chatter = output.substr(output.find_first_of('>') + 1, output.npos); // get the chatter accounting for users with > in name
-					std::string trimmed_name = pname.substr(pname.find_first_of(' ') + 1, pname.npos - pname.find_first_of(' ') + 1);
-
-					if (strcmp("#EG", egbot.c_str()) != 0) // ignore EG->TW relays
-					{
-						if ((chatter.find('"') != chatter.npos) || (chatter.find('@') != chatter.npos)) // quotes/ mess up curl, we should parse them out
-						{
-							for (int i = 0; i < chatter.length(); i++)
-							{
-								if (chatter.find('"') != chatter.npos) // replace all quotes
-									chatter.replace(chatter.find('"'), 1, "*");
-								if (chatter.find('@') != chatter.npos) // prevent tags
-									chatter.replace(chatter.find('@'), 1, "!");
-							}
-						}
-
-						std::thread([=]()
-							{
-								if (isLinked((String)trimmed_name.c_str()))
-									curlChatter((String)pname.c_str() + " \360\237\217\206", (String)chatter.c_str(), 13, _cache.discord.TWSpecWebhook);
-								else
-									curlChatter((String)pname.c_str(), (String)chatter.c_str(), 13, _cache.discord.TWSpecWebhook);
-
-								curlChatter((String)pname.c_str(), (String)chatter.c_str(), 13, _cache.discord.TWSpecMainDiscordWebhook); // relay to official SS Discord
-							}).detach();
-					}
-				}
 				}
 				break;
 			};
+			
 		}
 		break;
 	case EVENT_LocalCommand:
@@ -905,7 +940,7 @@ void botInfo::gotEvent(BotEvent &event)
 	case EVENT_Term:
 		{
 			tell(makeEcho("DLL plugin disconnected."));
-			_cache.discord.bot->shutdown();
+			_cache.discord.bot->shutdown(); // kill discord thread
 		}
 		break;
 	};

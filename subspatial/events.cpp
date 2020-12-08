@@ -1,4 +1,4 @@
-#include "spawn.h"
+﻿#include "spawn.h"
 /* events.cpp ~
 * 
 *  All Discord callbacks/events are handled within the startBotProcess function, which is run on a separate thread.
@@ -35,7 +35,7 @@ void botInfo::startBotProcess()
 
 	bot.set_on_guild_member_add([&](aegis::gateway::events::guild_member_add obj)
 		{
-			std::thread([=]() // fire a separate thread to avoid crash
+			std::thread([=]() 
 				{
 					if (isLinked(obj.member._user.id.gets())) // restore returning member's Elite Tier
 					{
@@ -65,8 +65,15 @@ void botInfo::startBotProcess()
 					DM2Game(recipient.c_str(), "[" + (String)obj.msg.author.username.c_str() + "] " + obj.msg.get_content().c_str());
 				}
 			}
-		}
-	);
+		});
+
+	bot.set_on_message_reaction_add([&](aegis::gateway::events::message_reaction_add obj)
+	{
+			if (obj.user_id == bot.get_id()) return;
+
+			checkUnlinker(obj);
+	});
+
 	bot.set_on_message_create([&](aegis::gateway::events::message_create obj)
 		{
 			if (obj.msg.author.id == bot.get_id())
@@ -81,11 +88,7 @@ void botInfo::startBotProcess()
 					{
 						if (obj.msg.get_content() == _cache.discord.bot_prefix + "refresh")
 						{
-							_cache.loadCache();
-							_cache.loadLists(0);
-							_cache.loadLists(1);
-							_cache.loadLists(2);
-							_cache.loadLists(3);
+							_cache.loadCache(); _cache.loadLists(0); _cache.loadLists(1); _cache.loadLists(2); _cache.loadLists(3);
 							bot.create_message(obj.msg.get_channel_id(), ":recycle: Bot settings **refreshed**!");
 						}
 					}
@@ -119,14 +122,15 @@ void botInfo::startBotProcess()
 								std::string code = createHash(7);
 								merv->hash.push_back(code + "@" + obj.msg.author.id.gets());
 
-								bot.create_dm_message(obj.msg.get_author_id(), ":closed_lock_with_key: Please login to the zone and PM **" + (std::string)me->name + "** with **!link** ||" + code
-									+ "|| in arena **" + _cache.game.arena + "** to finish linking your Continuum account to Discord!");
+								bot.create_dm_message(obj.msg.get_author_id(), ":closed_lock_with_key: Please login to **" + _cache.game.zone.substr(0, _cache.game.zone.find_last_of("."))
+									+ " (" + _cache.game.arena + ")** and PM **" + (std::string)me->name + "** with **!link** ||" + code
+									+ "|| to finish linking your Continuum account to Discord!");
 							}
 							else
 							{
 								std::string elite_acc = getKnownAccount(obj.msg.author.id.gets());
 
-								bot.create_dm_message(obj.msg.get_author_id(), ":octagonal_sign: Your Discord account is already linked to the Continuum alias **" + elite_acc
+								bot.create_dm_message(obj.msg.get_author_id(), ":no_entry: Your Discord account is already linked to the Continuum alias **" + elite_acc
 									+ "**. Please contact an administrator to change it, or use **" + _cache.discord.bot_prefix + "unlink** and relink your accounts.");
 							}
 
@@ -135,25 +139,49 @@ void botInfo::startBotProcess()
 					}
 					else if (obj.msg.get_content() == _cache.discord.bot_prefix + "unlink")
 					{
-						if (onCooldown("unlink", obj.msg.author.id.gets())) 
+						if (onCooldown("unlink", obj.msg.author.id.gets()))
 							bot.create_message(obj.msg.get_channel_id(), ":warning: **Slow down!** There is a 15 second cooldown until you can use this command again.");
 						else
 						{
-							if (isLinked(obj.msg.author.id.gets()))
-							{
-								bot.create_message(obj.msg.get_channel_id(), ":warning: **WARNING:** This will irrevocably unlink your Continuum and Discord accounts. Do you wish to continue?").then([](aegis::gateway::objects::message msg)
+							std::thread([=]()
+								{
+									if (isLinked(obj.msg.author.id.gets()))
 									{
-										msg.create_reaction("%F0%9F%91%8D").wait(); // TODO: make reaction events
-										msg.create_reaction("%F0%9F%91%8E");
-									});
-							}
+										using aegis::create_message_t;
+										using aegis::gateway::objects::embed;
+										using aegis::gateway::objects::field;
+										using aegis::gateway::objects::thumbnail;
+										using aegis::gateway::objects::footer;
 
-							startCooldown("unlink", obj.msg.author.id.gets(), 15);
+										_cache.discord.bot->create_dm_message(
+											create_message_t().user_id(obj.msg.author.id)
+											.embed(
+												embed()
+												.color(0xFFFF00).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+												.title("Continuum/Discord Account Unlinker").url("https://github.com/purge-dev")
+												.description("\342\232\240 You are about to unlink your Discord/Continuum accounts.")
+												.fields
+												({
+													field().name("CONTINUE?").value("Select \342\234\205 to complete the unlinking process.\n\n**OR**\n\nSelect \342\233\224 to abort this process.")
+													})
+												.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+											)
+										).then([](aegis::gateway::objects::message unlink_msg)
+											{
+												_cache.discord.unlinker.push_back(&unlink_msg); // add message to unlinker list and wait for reaction reply
+												unlink_msg.create_reaction("%E2%9C%85").wait(); // reactions must be URL encoded
+												std::this_thread::sleep_for(std::chrono::seconds(1));
+												unlink_msg.create_reaction("%E2%9B%94");
+											});
+									}
+								}).detach();
+
+								startCooldown("unlink", obj.msg.author.id.gets(), 15);
 						}
 					}
-					else if (obj.msg.get_content() == _cache.discord.bot_prefix + "help") // TODO: finish menu
+					else if (obj.msg.get_content() == _cache.discord.bot_prefix + "help")
 					{
-						if (onCooldown("help", obj.msg.author.id.gets())) 
+						if (onCooldown("help", obj.msg.author.id.gets()))
 							bot.create_message(obj.msg.get_channel_id(), ":warning: **Slow down!** There is a 20 second cooldown until you can use this command again.");
 						else
 						{
@@ -167,18 +195,67 @@ void botInfo::startBotProcess()
 								create_message_t().user_id(obj.msg.author.id)
 								.embed(
 									embed()
-									.color(0xFF0000).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+									.color(0x800080).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
 									.title("\360\237\232\200 Subspatial Help").url("https://github.com/purge-dev")
-									.description("Find detailed explanations on my functions below!")
+									//	.description("Find detailed explanations on my functions below!\n")
 									.fields
 									({
-										field().name("\360\237\226\245 User Commands").value(_cache.discord.bot_prefix + "link (binds your Discord handle to Continuum) \n" +
-										_cache.discord.bot_prefix + "unlink (unbinds your Continuum/Discord handles)")
+										field().name("\360\237\226\245 User Commands").value("**" + _cache.discord.bot_prefix + "link** (binds your Discord handle to Continuum) \n" +
+										"**" + _cache.discord.bot_prefix + "stats** (displays some cool statistics)\n" +
+										"**" + _cache.discord.bot_prefix + "find** <PlayerName> (runs a ?find search in SSC)\n" +
+										"**" + _cache.discord.bot_prefix + "unlink** (unbinds your Continuum/Discord handles) \360\237\217\206 \n\n" +
+										"\360\237\217\206 **Elite Tier Perks** \n" +
+											"**- Cross platform DMs**\n" +
+										"**- Continuum to Discord user mentions**\n" +
+										"**- Exclusive access to evolving economy**"),
 										})
 									.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
 								)
 							);
 							startCooldown("help", obj.msg.author.id.gets(), 20);
+						}
+					}
+					else if (obj.msg.get_content() == _cache.discord.bot_prefix + "stats")
+					{
+						if (onCooldown("stats", "global"))
+							bot.create_message(obj.msg.get_channel_id(), ":warning: **Slow down!** Someone recently used this command. Please wait 5 minutes.");
+						else
+						{
+							std::thread([=]()
+								{
+									using aegis::create_message_t;
+									using aegis::gateway::objects::embed;
+									using aegis::gateway::objects::field;
+									using aegis::gateway::objects::thumbnail;
+									using aegis::gateway::objects::footer;
+									merv->sendPublic("?uptime"); merv->sendPublic("?usage");
+									std::this_thread::sleep_for(std::chrono::seconds(2));
+
+									_cache.discord.bot->find_channel(obj.channel)->create_message(
+										create_message_t()
+										.embed(
+											embed()
+											.color(0x800080).thumbnail(thumbnail("https://media.tenor.com/images/c0dc2d892c76ef0802f57cfdd5ac8415/tenor.gif"))
+											.title("\360\237\232\200 Subspatial Statistics").url("https://github.com/purge-dev")
+											.description("Check out what's ticking under my hood!")
+											.fields
+											({
+												field().name("\360\237\216\256 " + _cache.game.zone.substr(0, _cache.game.zone.find_last_of("."))).value("**Current Arena:** " + _cache.game.arena + 
+													"\n**Total Playing:** " + std::to_string(countPlayers(1).first + countPlayers(1).second) + "\n**Total Spectators:** " + std::to_string(countPlayers(0).second)).is_inline(true),
+
+												field().name("\360\237\217\206 Elite Tier").value("**Newest Member:** " + _cache.discord.elite.accounts.front().second 
+													+ "\n**Total Users:** " + std::to_string(_cache.discord.elite.accounts.size())).is_inline(true),
+
+												field().name("\342\232\231 Server Stats").value("**Zone Uptime:** " + ((_cache.statistics.zone_uptime != "") ? _cache.statistics.zone_uptime : "``ERROR``") +
+													"\n**Zone Bot Status:** " + ((_cache.statistics.zone_uptime != "") ? "\342\234\205 ``Connected for " + _cache.statistics.bot_uptime + " (h:m:s)``" : "\342\230\240 ``Disconnected``"))						
+												})
+											.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+										)
+									);
+									_cache.statistics.zone_uptime = "";
+									_cache.statistics.bot_uptime = "";
+									startCooldown("stats", "global", 300); // create a global cooldown, not per-player
+								}).detach();
 						}
 					}
 				}
@@ -192,7 +269,7 @@ void botInfo::startBotProcess()
 						{
 							std::thread([=]()
 								{
-									if (_cache.discord.find.size() == 0)
+									if (_cache.discord.find == "")
 									{
 										merv->sendPublic("?find " + (String)cmdGetParam(obj.msg.get_content()).c_str());
 										std::this_thread::sleep_for(std::chrono::seconds(3));
@@ -241,16 +318,16 @@ void botInfo::startBotProcess()
 											.embed(
 												embed()
 												.color(color).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
-												.title("\360\237\232\200 Continuum User Lookup").url("https://store.steampowered.com/app/352700")
+												.title("\360\237\224\215 Continuum User Lookup").url("https://store.steampowered.com/app/352700")
 												.description(name)
 												.fields
 												({
 													field().name(type).value(status)
 													})
-												.footer(footer("The above lookup was done by " + std::string(me->name) + " in " + _cache.game.zone))
+												.footer(footer("The above lookup was performed by " + std::string(me->name) + " in " + _cache.game.zone))
 											)
 										);
-										_cache.discord.find.clear();
+										_cache.discord.find = "";
 									}
 
 									startCooldown("find", obj.msg.author.id.gets(), 10);
@@ -268,6 +345,6 @@ void botInfo::startBotProcess()
 		});
 
 	bot.run();
-	_cache.discord.bot = &bot; // live life on the edge
+	_cache.discord.bot = &bot; // live life on the edge in the name of Subspace
 	bot.yield();
 }

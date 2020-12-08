@@ -12,7 +12,7 @@
 #define ELITEINI "discord\\data\\elite.dat"
 #define ECONINI "discord\\data\\economy.dat"
 
-#define BOT_VER "2.0.3" // always keep 5 chars
+#define BOT_VER "2.0.5" // always keep 5 chars
 
 #include "..\mervbot\dllcore.h"
 
@@ -29,6 +29,7 @@ struct PlayerTag
 	int data;
 };
 /////// DISCORD ///////
+
 struct EliteCache
 {
 	std::vector <std::string> muted,                           // stores muted Continuum player names
@@ -38,22 +39,31 @@ struct EliteCache
 
 struct FlakesCache
 {
-	aegis::snowflake relayChannel, serverID, TWSpecChannel, eliteRoleID, mainChannelID, staffRoleID, updateChannel;
+	aegis::snowflake relayChannel, serverID, TWSpecChannel, eliteRoleID, mainChannelID, staffRoleID;
+};
+
+struct StatsCache
+{
+	std::string zone_uptime, bot_uptime;
 };
 
 struct Discord
 {
 	aegis::core* bot;
 	std::string token, relayWebhook, TWSpecWebhook, DevaMainDiscordWebhook, TWSpecMainDiscordWebhook, spamHook, bot_prefix, find;
+	std::vector <aegis::gateway::objects::message*> unlinker;
 
 	struct EliteCache elite;
 	struct FlakesCache flakes;
-	void updateBot(std::string version);
+	void updateBot();
 };
 
 struct GameCache
 {
-	std::string arena, zone;
+	std::string arena, zone, winner_msg, game_time, history_log;
+	std::pair <std::string, std::string> freq0_score, freq1_score, game_score;
+	std::vector <std::string> snapshots;
+	std::vector <std::tuple<std::string, int, std::string, std::string>> player_bd_list; // player_name, team, kills, deaths
 };
 
 struct PlayerSession
@@ -73,6 +83,7 @@ struct EconomyCache
 // Mega dump of stored values read on boot
 struct Cachedump 
 {
+	struct StatsCache statistics;
 	struct Discord discord;
 	struct GameCache game;
 	struct EconomyCache economy;
@@ -114,7 +125,7 @@ class botInfo
 	int countdown[6];
 
 	// Put bot data here
-
+	
 public:
 	
 	class Economy 
@@ -138,8 +149,9 @@ public:
 		countdown[0] = 8; // Discord connection
 		countdown[1] = 30; // online list updater
 		countdown[2] = 300; // priv_msg handle cleanup
-		countdown[3] = 0;
-		countdown[4] = 0;
+		countdown[3] = 0; // !spam
+		countdown[4] = 0; // !extra
+	//	countdown[5] = 3600; // auto-updates
 		CONNECTION_DENIED = false;
 		me = 0;
 		biller_online = true;
@@ -160,6 +172,8 @@ public:
 	std::string getElitePairStrings();
 	std::string createUserMentionString(std::string msg);
 	std::string getMutedPlayers();
+	std::pair <std::string, std::string> parseFreqBDStats(std::string raw);
+	std::string getBDPlayersAndScores(int team);
 
 	std::vector <std::tuple<aegis::snowflake, aegis::snowflake, std::string>> priv_msg; // channel id, discord id, recipient string
 	std::vector <std::tuple<std::string, std::string, bool>> cooldown; // cooldown stored as userID, command string, timer
@@ -175,7 +189,10 @@ public:
 	bool isIgnored(String pname);
 	bool isMuted(String pname);
 	bool cmdHasParam(std::string command);
+	bool isBDVictory(std::string msg);
 
+	void parsePlayerBDStats(std::string raw);
+	void checkUnlinker(aegis::gateway::events::message_reaction_add obj);
 	void clearDMhandles();
 	void DM2Game(String recipient, String msg);
 	void startCooldown(std::string cmd, std::string usrID, int timer);
@@ -190,7 +207,6 @@ public:
 	aegis::user* getUser(std::string usrname);
 	aegis::user* getUser(char* usrname);
 	Player* findPlayerByName(char* name);
-
 	/////// END-DISCORD ///////
 
 	void clear_objects();
@@ -235,6 +251,7 @@ public:
 // some entries may no longer exist.
 
 extern _linkedlist <botInfo> botlist;
+
 /////// DISCORD ///////
 extern botInfo *merv;
 extern Cachedump _cache;

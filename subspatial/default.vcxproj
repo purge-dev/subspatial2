@@ -128,6 +128,7 @@
     </ResourceCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="bd.cpp" />
     <ClCompile Include="command.cpp" />
     <ClCompile Include="discord.cpp" />
     <ClCompile Include="economy.cpp" />

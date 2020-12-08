@@ -30,6 +30,9 @@
     <ClCompile Include="economy.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="bd.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="spawn.h">

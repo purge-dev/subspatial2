@@ -20,7 +20,23 @@ void Cachedump::loadCache()
 	_cache.discord.spamHook = merv->getINIString(10);
 	_cache.discord.TWSpecMainDiscordWebhook = merv->getINIString(11);
 	_cache.discord.DevaMainDiscordWebhook = merv->getINIString(12);
-	_cache.discord.flakes.updateChannel = (aegis::snowflake)merv->getINIString(13);
+
+	// Snapshot cache for postgame stats embed
+	std::fstream file;
+
+	file.open("discord\\data\\snaps.dat", std::ios::in);
+	if (file.peek() == file.eof())
+		return;
+
+	if (!file.good()) 
+		return;
+	else
+	{
+		char line[1024];
+		while (file.getline(line, 1024))
+			_cache.game.snapshots.push_back(line); // feed every url into vector
+	}
+	file.close();
 }
 
 void Cachedump::loadLists(int type)
@@ -243,6 +259,56 @@ void botInfo::updateOnlineList()
 		"**__Spectators__**\n" + spec_players +
 		freq0players + freq1players + "\n\n **Note:** This list is updated every 5 minutes due to current rate limits.",
 		std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
+}
+
+void botInfo::checkUnlinker(aegis::gateway::events::message_reaction_add obj) 
+{
+	for (int i = 0; i < _cache.discord.unlinker.size(); i++)
+	{
+		if (_cache.discord.unlinker[i]->get_id() == obj.message_id) // reacted to msg awaiting reply
+		{
+			using aegis::edit_message_t;
+			using aegis::gateway::objects::embed;
+			using aegis::gateway::objects::field;
+			using aegis::gateway::objects::thumbnail;
+			using aegis::gateway::objects::footer;
+
+			if (obj.emoji.name == u8"\u2705") // yes
+			{
+				std::string unlinked_acc = getKnownAccount(obj.user_id.gets());
+				unlinkAccount(obj.user_id.gets());
+				_cache.discord.bot->find_channel(obj.channel_id)->edit_message(edit_message_t().message_id(obj.message_id)
+					.embed(
+						embed()
+						.color(0x00FF00).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+						.title("Continuum/Discord Account Unlinker").url("https://github.com/purge-dev")
+							.description("\342\234\205 Your Discord/Continuum accounts have been successfully unlinked.")
+						.fields
+						({
+							field().name("Continuum Account Unlinked:").value(unlinked_acc + "\n\n All **Elite Tier** privileges have been forfeited.")
+							})
+						.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+					)
+				);
+			}
+			else if (obj.emoji.name == u8"\u26D4") // no
+				_cache.discord.bot->find_channel(obj.channel_id)->edit_message(edit_message_t().message_id(obj.message_id)
+					.embed(
+						embed()
+						.color(0xFF0000).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+						.title("Continuum/Discord Account Unlinker").url("https://github.com/purge-dev")
+						.description("\342\233\224 The unlinking process has been aborted.")
+						.fields
+						({
+							field().name("Currently Linked Account:").value(getKnownAccount(obj.user_id.gets()) + "\n\n **Elite Tier** privileges remain active.")
+							})
+						.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+					)
+				);
+
+			_cache.discord.unlinker.erase(_cache.discord.unlinker.begin() + i); // erase this message handle from vector
+		}
+	}
 }
 
 void botInfo::relayChat(std::string user, std::string msg, int zone)
