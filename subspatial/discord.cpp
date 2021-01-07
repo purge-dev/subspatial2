@@ -20,6 +20,8 @@ void Cachedump::loadCache()
 	_cache.discord.spamHook = merv->getINIString(10);
 	_cache.discord.TWSpecMainDiscordWebhook = merv->getINIString(11);
 	_cache.discord.DevaMainDiscordWebhook = merv->getINIString(12);
+	_cache.discord.flakes.MusicChannelID = (aegis::snowflake)merv->getINIString(13);
+	_cache.discord.flakes.relayCategory = (aegis::snowflake)merv->getINIString(14);
 
 	// Snapshot cache for postgame stats embed
 	std::fstream file;
@@ -178,17 +180,70 @@ void Cachedump::loadLists(int type)
 	}
 }
 
-std::string botInfo::getElitePairStrings()
+void botInfo::parseMusic(aegis::gateway::events::message_create obj)
 {
-	std::string res;
-	for (int i = 0; i < _cache.discord.elite.accounts.size(); i++)
-		res.append("(" + _cache.discord.elite.accounts[i].first.gets() + ":" + _cache.discord.elite.accounts[i].second + "), ");
-	return res;
+	if (obj.msg.author.username == "Rythm 2")
+	{
+		auto em = obj.msg.embeds;
+		for (int i = 0; i < em.size(); i++)
+		{
+			if (em[i].title().front() == 'N')
+			{
+				size_t delim = em[i].title().find_last_of(" ");
+				title[0] = em[i].title().erase(delim, em[i].title().length() - delim);
+
+				if (strcmp(title[0].c_str(), "Now Playing "))
+				{
+					requester[0] = em[i].description().substr(em[i].description().find("Requested by:") + 14, (em[i].description().find("Up Next:") - 5) - (em[i].description().find("Requested by:") + 14));
+					next[0] = em[i].description().substr(em[i].description().find("Up Next:") + 9, em[i].description().npos - em[i].description().find("Up Next:"));
+					em[i].description().erase(0, 1);
+
+					if (em[i].description().find("[") != em[i].description().npos)
+						em[i].description().erase(em[i].description().find("["), 1);
+
+					size_t parse = (em[i].description().find_first_of("]"));
+					songname[0] = em[i].description().erase(parse, em[i].description().length() - delim);
+
+					merv->sendTeam("[Discord Music 1] Now Playing: " + (String)songname[0].c_str() + " (requested by" + (String)requester[0].c_str() + ")");
+					merv->sendTeam("Up Next: " + (String)next[0].c_str());
+				}
+			}
+		}
+	}
+	if (obj.msg.author.username == "Rythm")
+	{
+		auto em = obj.msg.embeds;
+		for (int i = 0; i < em.size(); i++)
+		{
+			if (em[i].title().front() == 'N')
+			{
+				size_t delim = em[i].title().find_last_of(" ");
+				title[1] = em[i].title().erase(delim, em[i].title().length() - delim);
+
+				if (strcmp(title[1].c_str(), "Now Playing "))
+				{
+					requester[1] = em[i].description().substr(em[i].description().find("Requested by:") + 14, (em[i].description().find("Up Next:") - 5) - (em[i].description().find("Requested by:") + 14));
+					next[1] = em[i].description().substr(em[i].description().find("Up Next:") + 9, em[i].description().npos - em[i].description().find("Up Next:"));
+					em[i].description().erase(0, 1);
+
+					if (em[i].description().find("[") != em[i].description().npos)
+						em[i].description().erase(em[i].description().find("["), 1);
+
+					size_t parse = (em[i].description().find_first_of("]"));
+					songname[1] = em[i].description().erase(parse, em[i].description().length() - delim);
+
+					merv->sendTeam("[Discord Music 2] Now Playing: " + (String)songname[1].c_str() + " (requested by" + (String)requester[1].c_str() + ")");
+					merv->sendTeam("Up Next: " + (String)next[1].c_str());
+				}
+			}
+		}
+	}
 }
 
 bool botInfo::isStaff(aegis::snowflake usrID)
 {
-	if (_cache.discord.bot->find_guild(_cache.discord.flakes.serverID)->member_has_role(usrID, _cache.discord.flakes.staffRoleID))
+	if ((_cache.discord.bot->find_guild(_cache.discord.flakes.serverID)->member_has_role(usrID, _cache.discord.flakes.staffRoleID)) ||
+		(_cache.discord.bot->find_guild(_cache.discord.flakes.serverID)->member_has_role(usrID, (aegis::snowflake)"774914545827053588"))) // REMOVE BEFORE RELEASE
 		return true;
 	else
 		return false;
@@ -259,6 +314,9 @@ void botInfo::updateOnlineList()
 		"**__Spectators__**\n" + spec_players +
 		freq0players + freq1players + "\n\n **Note:** This list is updated every 5 minutes due to current rate limits.",
 		std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
+
+	_cache.discord.bot->find_channel(_cache.discord.flakes.relayCategory)->modify_channel("\360\237\222\254 Zone Chat (" + zone_count + " Online)", std::nullopt, std::nullopt,
+		std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
 }
 
 void botInfo::checkUnlinker(aegis::gateway::events::message_reaction_add obj) 
@@ -267,42 +325,37 @@ void botInfo::checkUnlinker(aegis::gateway::events::message_reaction_add obj)
 	{
 		if (_cache.discord.unlinker[i]->get_id() == obj.message_id) // reacted to msg awaiting reply
 		{
-			using aegis::edit_message_t;
-			using aegis::gateway::objects::embed;
-			using aegis::gateway::objects::field;
-			using aegis::gateway::objects::thumbnail;
-			using aegis::gateway::objects::footer;
-
+			DEF_FOOTER;
 			if (obj.emoji.name == u8"\u2705") // yes
 			{
 				std::string unlinked_acc = getKnownAccount(obj.user_id.gets());
 				unlinkAccount(obj.user_id.gets());
-				_cache.discord.bot->find_channel(obj.channel_id)->edit_message(edit_message_t().message_id(obj.message_id)
+				_cache.discord.bot->find_channel(obj.channel_id)->edit_message(aegis::edit_message_t().message_id(obj.message_id)
 					.embed(
-						embed()
-						.color(0x00FF00).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+						aegis::gateway::objects::embed()
+						.color(0x00FF00).thumbnail(aegis::gateway::objects::thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
 						.title("Continuum/Discord Account Unlinker").url("https://github.com/purge-dev")
 							.description("\342\234\205 Your Discord/Continuum accounts have been successfully unlinked.")
 						.fields
 						({
-							field().name("Continuum Account Unlinked:").value(unlinked_acc + "\n\n All **Elite Tier** privileges have been forfeited.")
+							aegis::gateway::objects::field().name("Continuum Account Unlinked:").value(unlinked_acc + "\n\n All \360\237\217\206 **Elite Tier** privileges have been forfeited.")
 							})
-						.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+						.footer(foot)
 					)
 				);
 			}
 			else if (obj.emoji.name == u8"\u26D4") // no
-				_cache.discord.bot->find_channel(obj.channel_id)->edit_message(edit_message_t().message_id(obj.message_id)
+				_cache.discord.bot->find_channel(obj.channel_id)->edit_message(aegis::edit_message_t().message_id(obj.message_id)
 					.embed(
-						embed()
-						.color(0xFF0000).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+						aegis::gateway::objects::embed()
+						.color(0xFF0000).thumbnail(aegis::gateway::objects::thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
 						.title("Continuum/Discord Account Unlinker").url("https://github.com/purge-dev")
 						.description("\342\233\224 The unlinking process has been aborted.")
 						.fields
 						({
-							field().name("Currently Linked Account:").value(getKnownAccount(obj.user_id.gets()) + "\n\n **Elite Tier** privileges remain active.")
+							aegis::gateway::objects::field().name("Currently Linked Account:").value(getKnownAccount(obj.user_id.gets()) + "\n\n \360\237\217\206 **Elite Tier** privileges remain active.")
 							})
-						.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+						.footer(foot)
 					)
 				);
 
@@ -310,6 +363,32 @@ void botInfo::checkUnlinker(aegis::gateway::events::message_reaction_add obj)
 		}
 	}
 }
+
+void botInfo::checkSettingsCommand(aegis::gateway::events::message_reaction_add obj)
+{
+	for (int i = 0; i < _cache.discord.settings_menu.size(); i++)
+	{
+		if (_cache.discord.settings_menu[i]->get_id() == obj.message_id)
+		{
+			DEF_FOOTER;
+			if (obj.emoji.name == u8"\u0031\uFE0F\u20E3" || obj.emoji.name == u8"\u0032\uFE0F\u20E3" || obj.emoji.name == u8"\u0033\uFE0F\u20E3" || 
+				obj.emoji.name == u8"\u0034\uFE0F\u20E3" || obj.emoji.name == u8"\u0035\uFE0F\u20E3" || obj.emoji.name == u8"\u0036\uFE0F\u20E3" ||
+				obj.emoji.name == u8"\u0037\uFE0F\u20E3" || obj.emoji.name == u8"\u0038\uFE0F\u20E3" || obj.emoji.name == u8"\u0039\uFE0F\u20E3") // 1, 2, 3, etc.
+
+				_cache.discord.bot->find_channel(obj.channel_id)->edit_message(aegis::edit_message_t().message_id(obj.message_id)
+					.embed(
+						aegis::gateway::objects::embed()
+						.color(0x00FF00).thumbnail(aegis::gateway::objects::thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+						.title("Attempting to Change System Settings").url("https://github.com/purge-dev")
+						.description("Please enter the new value or press \342\235\214 to cancel.")
+						.footer(foot)));
+
+			_cache.discord.await_settings_change.push_back(std::make_pair(_cache.discord.settings_menu[i], obj.emoji.name)); // add this msg and emoji name to check for value
+			_cache.discord.settings_menu.erase(_cache.discord.settings_menu.begin() + i);
+		}
+	}
+}
+
 
 void botInfo::relayChat(std::string user, std::string msg, int zone)
 {
@@ -325,6 +404,8 @@ void botInfo::relayChat(std::string user, std::string msg, int zone)
 	else if (CMPSTART("t@", msg.c_str())) // skynet commands
 		return;
 	else if (CMPSTART("!", msg.c_str())) // skynet commands
+		return;
+	else if (CMPSTART("``", msg.c_str())) // code tags
 		return;
 	else if (CMPSTART(_cache.discord.bot_prefix.c_str(), msg.c_str())) // prefix
 		return;

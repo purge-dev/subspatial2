@@ -12,7 +12,8 @@
 #define ELITEINI "discord\\data\\elite.dat"
 #define ECONINI "discord\\data\\economy.dat"
 
-#define BOT_VER "2.0.5" // always keep 5 chars
+#define BOT_VER "2.0.6" // always keep 5 chars
+#define DEF_FOOTER aegis::gateway::objects::footer foot; foot.icon_url = "https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"; foot.text = "Subspatial v" + (std::string)BOT_VER + " | Created by Purge";
 
 #include "..\mervbot\dllcore.h"
 
@@ -33,13 +34,13 @@ struct PlayerTag
 struct EliteCache
 {
 	std::vector <std::string> muted,                           // stores muted Continuum player names
-		ignored;                                               // stores ignored names for online list
+		ignored;                                               // stores ignored names for online list (bots, trolls)
 	std::vector <std::pair<aegis::snowflake, std::string>>	accounts; // stores elite tier players' usr flakes + Continuum names 
 };
 
 struct FlakesCache
 {
-	aegis::snowflake relayChannel, serverID, TWSpecChannel, eliteRoleID, mainChannelID, staffRoleID;
+	aegis::snowflake relayCategory, relayChannel, serverID, TWSpecChannel, eliteRoleID, mainChannelID, staffRoleID, MusicChannelID;
 };
 
 struct StatsCache
@@ -52,32 +53,34 @@ struct Discord
 	aegis::core* bot;
 	std::string token, relayWebhook, TWSpecWebhook, DevaMainDiscordWebhook, TWSpecMainDiscordWebhook, spamHook, bot_prefix, find;
 	std::vector <aegis::gateway::objects::message*> unlinker;
+	std::vector <aegis::gateway::objects::message*> settings_menu;
+	std::vector <std::pair<aegis::gateway::objects::message*, std::string>> await_settings_change; // stores dm msg/emoji name
 
 	struct EliteCache elite;
 	struct FlakesCache flakes;
 	void updateBot();
 };
 
+struct PlayerRating
+{
+	int kills, deaths, best_spree, best_bounty;
+	bool anch;
+	float computeRating(Player* p);
+};
+
 struct GameCache
 {
+	struct PlayerRating rating;
 	std::string arena, zone, winner_msg, game_time, history_log;
 	std::pair <std::string, std::string> freq0_score, freq1_score, game_score;
 	std::vector <std::string> snapshots;
 	std::vector <std::tuple<std::string, int, std::string, std::string>> player_bd_list; // player_name, team, kills, deaths
 };
 
-struct PlayerSession
-{
-	Player* usr;
-	int kills, deaths, best_spree, best_bounty;
-	bool anch;
-};
-
 struct EconomyCache
 {
-	struct PlayerSession session;
-	std::vector <std::pair<int, std::string>> accounts; // stored as <scrap, DiscordID>
-	float savings_rate, performance_rate;
+	std::vector <std::pair<float, std::string>> accounts; // stored as <scrap, DiscordID>
+	double zone_penalty, inactive_penalty;
 };
 
 // Mega dump of stored values read on boot
@@ -100,7 +103,6 @@ class botInfo
 	bool CONNECTION_DENIED;
 
 	_linkedlist <PlayerTag> taglist;
-	_linkedlist <PlayerSession> sessionlist;
 
 	int get_tag(Player *p, int index);
 	void set_tag(Player *p, int index, int data);
@@ -169,11 +171,11 @@ public:
 	std::string getKnownAccount(std::string discordID);
 	std::string getKnownAccount(char* pname);
 	std::string cmdGetParam(std::string command);
-	std::string getElitePairStrings();
 	std::string createUserMentionString(std::string msg);
-	std::string getMutedPlayers();
 	std::pair <std::string, std::string> parseFreqBDStats(std::string raw);
 	std::string getBDPlayersAndScores(int team);
+	std::string songname[2], title[2], requester[2], next[2];
+	std::string removeMarkdown(std::string pName);
 
 	std::vector <std::tuple<aegis::snowflake, aegis::snowflake, std::string>> priv_msg; // channel id, discord id, recipient string
 	std::vector <std::tuple<std::string, std::string, bool>> cooldown; // cooldown stored as userID, command string, timer
@@ -193,6 +195,7 @@ public:
 
 	void parsePlayerBDStats(std::string raw);
 	void checkUnlinker(aegis::gateway::events::message_reaction_add obj);
+	void checkSettingsCommand(aegis::gateway::events::message_reaction_add obj);
 	void clearDMhandles();
 	void DM2Game(String recipient, String msg);
 	void startCooldown(std::string cmd, std::string usrID, int timer);
@@ -203,6 +206,8 @@ public:
 	void curlChatter(String name, String msg, int ship, std::string channelhook);
 	void startBotProcess();
 	void relayChat(std::string user, std::string msg, int zone);
+	void parseMusic(aegis::gateway::events::message_create obj);
+	void clearScoresCache();
 
 	aegis::user* getUser(std::string usrname);
 	aegis::user* getUser(char* usrname);

@@ -65,6 +65,14 @@ void botInfo::startBotProcess()
 					DM2Game(recipient.c_str(), "[" + (String)obj.msg.author.username.c_str() + "] " + obj.msg.get_content().c_str());
 				}
 			}
+			/* TODO
+			if (_cache.discord.await_settings_change.size() > 0)
+			{
+				for (int i = 0; i < _cache.discord.await_settings_change.size(); i++)
+				{
+					if (_cache.discord.await_settings_change[i].first->author)
+				}
+			} */
 		});
 
 	bot.set_on_message_reaction_add([&](aegis::gateway::events::message_reaction_add obj)
@@ -72,6 +80,7 @@ void botInfo::startBotProcess()
 			if (obj.user_id == bot.get_id()) return;
 
 			checkUnlinker(obj);
+			checkSettingsCommand(obj);
 	});
 
 	bot.set_on_message_create([&](aegis::gateway::events::message_create obj)
@@ -90,6 +99,60 @@ void botInfo::startBotProcess()
 						{
 							_cache.loadCache(); _cache.loadLists(0); _cache.loadLists(1); _cache.loadLists(2); _cache.loadLists(3);
 							bot.create_message(obj.msg.get_channel_id(), ":recycle: Bot settings **refreshed**!");
+						}
+						else if (obj.msg.get_content() == _cache.discord.bot_prefix + "settings")
+						{
+							if (onCooldown("settings", "global"))
+								bot.create_message(obj.msg.get_channel_id(), ":warning: **Slow down!** Someone recently used this command. Please wait 10 seconds.");
+							else
+							{
+								// DM embed with options to change channel IDs/staff ID/etc.
+								DEF_FOOTER;
+								_cache.discord.bot->create_dm_message(
+									aegis::create_message_t().user_id(obj.msg.author.id)
+									.embed(
+										aegis::gateway::objects::embed()
+										.color(0xFFFF00).thumbnail(aegis::gateway::objects::thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+										.title("\342\232\231 Settings Menu").url("https://github.com/purge-dev")
+										.description("Please select a setting to change from the below options.")
+										.fields
+										({
+											aegis::gateway::objects::field().name("1").value("Relay Category ID"),
+											aegis::gateway::objects::field().name("2").value("Main Chat Channel ID"),
+											aegis::gateway::objects::field().name("3").value("Relay Channel ID"),
+											aegis::gateway::objects::field().name("4").value("Music Channel ID"),
+											aegis::gateway::objects::field().name("5").value("Elite Role ID"),
+											aegis::gateway::objects::field().name("6").value("Staff Role ID"),
+											aegis::gateway::objects::field().name("7").value("Relay Webhook"),
+											aegis::gateway::objects::field().name("8").value("Spam Webhook"),
+											aegis::gateway::objects::field().name("9").value("Server ID")
+											})
+										.footer(foot)
+									)
+								).then([](aegis::gateway::objects::message settings_msg)
+									{
+										_cache.discord.settings_menu.push_back(&settings_msg); // queue the msg to check for reactions
+										settings_msg.create_reaction("1%EF%B8%8F%E2%83%A3").wait(); // reactions must be URL encoded
+										std::this_thread::sleep_for(std::chrono::seconds(1));
+										settings_msg.create_reaction("2%EF%B8%8F%E2%83%A3");
+										std::this_thread::sleep_for(std::chrono::seconds(1));
+										settings_msg.create_reaction("3%EF%B8%8F%E2%83%A3");
+										std::this_thread::sleep_for(std::chrono::seconds(1));
+										settings_msg.create_reaction("4%EF%B8%8F%E2%83%A3");
+										std::this_thread::sleep_for(std::chrono::seconds(1));
+										settings_msg.create_reaction("5%EF%B8%8F%E2%83%A3");
+										std::this_thread::sleep_for(std::chrono::seconds(1));
+										settings_msg.create_reaction("6%EF%B8%8F%E2%83%A3");
+										std::this_thread::sleep_for(std::chrono::seconds(1));
+										settings_msg.create_reaction("7%EF%B8%8F%E2%83%A3");
+										std::this_thread::sleep_for(std::chrono::seconds(1));
+										settings_msg.create_reaction("8%EF%B8%8F%E2%83%A3");
+										std::this_thread::sleep_for(std::chrono::seconds(1));
+										settings_msg.create_reaction("9%EF%B8%8F%E2%83%A3");
+										settings_msg.create_reaction("%E2%9D%8C");		
+									});
+								startCooldown("settings", "global", 10);
+							}
 						}
 					}
 					else // PARAMETER COMMANDS
@@ -147,24 +210,19 @@ void botInfo::startBotProcess()
 								{
 									if (isLinked(obj.msg.author.id.gets()))
 									{
-										using aegis::create_message_t;
-										using aegis::gateway::objects::embed;
-										using aegis::gateway::objects::field;
-										using aegis::gateway::objects::thumbnail;
-										using aegis::gateway::objects::footer;
-
+										DEF_FOOTER;
 										_cache.discord.bot->create_dm_message(
-											create_message_t().user_id(obj.msg.author.id)
+											aegis::create_message_t().user_id(obj.msg.author.id)
 											.embed(
-												embed()
-												.color(0xFFFF00).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+												aegis::gateway::objects::embed()
+												.color(0xFFFF00).thumbnail(aegis::gateway::objects::thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
 												.title("Continuum/Discord Account Unlinker").url("https://github.com/purge-dev")
 												.description("\342\232\240 You are about to unlink your Discord/Continuum accounts.")
 												.fields
 												({
-													field().name("CONTINUE?").value("Select \342\234\205 to complete the unlinking process.\n\n**OR**\n\nSelect \342\233\224 to abort this process.")
+													aegis::gateway::objects::field().name("CONTINUE?").value("Select \342\234\205 to complete the unlinking process.\n\n**OR**\n\nSelect \342\233\224 to abort this process.")
 													})
-												.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+												.footer(foot)
 											)
 										).then([](aegis::gateway::objects::message unlink_msg)
 											{
@@ -185,31 +243,26 @@ void botInfo::startBotProcess()
 							bot.create_message(obj.msg.get_channel_id(), ":warning: **Slow down!** There is a 20 second cooldown until you can use this command again.");
 						else
 						{
-							using aegis::create_message_t;
-							using aegis::gateway::objects::embed;
-							using aegis::gateway::objects::field;
-							using aegis::gateway::objects::thumbnail;
-							using aegis::gateway::objects::footer;
-
+							DEF_FOOTER;
 							bot.create_dm_message(
-								create_message_t().user_id(obj.msg.author.id)
+								aegis::create_message_t().user_id(obj.msg.author.id)
 								.embed(
-									embed()
-									.color(0x800080).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+									aegis::gateway::objects::embed()
+									.color(0x800080).thumbnail(aegis::gateway::objects::thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
 									.title("\360\237\232\200 Subspatial Help").url("https://github.com/purge-dev")
 									//	.description("Find detailed explanations on my functions below!\n")
 									.fields
 									({
-										field().name("\360\237\226\245 User Commands").value("**" + _cache.discord.bot_prefix + "link** (binds your Discord handle to Continuum) \n" +
+										aegis::gateway::objects::field().name("\360\237\226\245 User Commands").value("**" + _cache.discord.bot_prefix + "link** (binds your Discord handle to Continuum) \n" +
 										"**" + _cache.discord.bot_prefix + "stats** (displays some cool statistics)\n" +
 										"**" + _cache.discord.bot_prefix + "find** <PlayerName> (runs a ?find search in SSC)\n" +
 										"**" + _cache.discord.bot_prefix + "unlink** (unbinds your Continuum/Discord handles) \360\237\217\206 \n\n" +
 										"\360\237\217\206 **Elite Tier Perks** \n" +
-											"**- Cross platform DMs**\n" +
+											"**- Cross-platform DMs**\n" +
 										"**- Continuum to Discord user mentions**\n" +
 										"**- Exclusive access to evolving economy**"),
 										})
-									.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+									.footer(foot)
 								)
 							);
 							startCooldown("help", obj.msg.author.id.gets(), 20);
@@ -222,38 +275,35 @@ void botInfo::startBotProcess()
 						else
 						{
 							std::thread([=]()
-								{
-									using aegis::create_message_t;
-									using aegis::gateway::objects::embed;
-									using aegis::gateway::objects::field;
-									using aegis::gateway::objects::thumbnail;
-									using aegis::gateway::objects::footer;
+								{		
+									DEF_FOOTER;
 									merv->sendPublic("?uptime"); merv->sendPublic("?usage");
 									std::this_thread::sleep_for(std::chrono::seconds(2));
 
 									_cache.discord.bot->find_channel(obj.channel)->create_message(
-										create_message_t()
+										aegis::create_message_t()
 										.embed(
-											embed()
-											.color(0x800080).thumbnail(thumbnail("https://media.tenor.com/images/c0dc2d892c76ef0802f57cfdd5ac8415/tenor.gif"))
+											aegis::gateway::objects::embed()
+											.color(0x800080).thumbnail(aegis::gateway::objects::thumbnail("https://media.tenor.com/images/c0dc2d892c76ef0802f57cfdd5ac8415/tenor.gif"))
 											.title("\360\237\232\200 Subspatial Statistics").url("https://github.com/purge-dev")
 											.description("Check out what's ticking under my hood!")
 											.fields
 											({
-												field().name("\360\237\216\256 " + _cache.game.zone.substr(0, _cache.game.zone.find_last_of("."))).value("**Current Arena:** " + _cache.game.arena + 
+												aegis::gateway::objects::field().name("\360\237\216\256 " + _cache.game.zone.substr(0, _cache.game.zone.find_last_of("."))).value("**Current Arena:** " + _cache.game.arena +
 													"\n**Total Playing:** " + std::to_string(countPlayers(1).first + countPlayers(1).second) + "\n**Total Spectators:** " + std::to_string(countPlayers(0).second)).is_inline(true),
 
-												field().name("\360\237\217\206 Elite Tier").value("**Newest Member:** " + _cache.discord.elite.accounts.front().second 
+												aegis::gateway::objects::field().name("\360\237\217\206 Elite Tier").value("**Newest Member:** " + _cache.discord.elite.accounts.front().second
 													+ "\n**Total Users:** " + std::to_string(_cache.discord.elite.accounts.size())).is_inline(true),
 
-												field().name("\342\232\231 Server Stats").value("**Zone Uptime:** " + ((_cache.statistics.zone_uptime != "") ? _cache.statistics.zone_uptime : "``ERROR``") +
-													"\n**Zone Bot Status:** " + ((_cache.statistics.zone_uptime != "") ? "\342\234\205 ``Connected for " + _cache.statistics.bot_uptime + " (h:m:s)``" : "\342\230\240 ``Disconnected``"))						
+												aegis::gateway::objects::field().name("\342\232\231 Server Stats").value("**Zone Uptime:** " + ((_cache.statistics.zone_uptime != "") ? _cache.statistics.zone_uptime : "``ERROR``") +
+													"\n**Zone Bot:** " + ((_cache.statistics.zone_uptime != "") ? "``\342\234\205 Connected for " + _cache.statistics.bot_uptime + " (h:m:s)``" : "``\342\230\240 Disconnected``") + 
+												"\n**Discord:** `` \342\234\205 Connected for " + _cache.discord.bot->uptime_str() + "``")						
 												})
-											.footer(footer("Subspatial v" + (std::string)BOT_VER + " | Created by Purge"))
+											.footer(foot)
 										)
 									);
-									_cache.statistics.zone_uptime = "";
-									_cache.statistics.bot_uptime = "";
+									_cache.statistics.zone_uptime.clear();
+									_cache.statistics.bot_uptime.clear();
 									startCooldown("stats", "global", 300); // create a global cooldown, not per-player
 								}).detach();
 						}
@@ -269,17 +319,12 @@ void botInfo::startBotProcess()
 						{
 							std::thread([=]()
 								{
-									if (_cache.discord.find == "")
+									if (_cache.discord.find.empty())
 									{
 										merv->sendPublic("?find " + (String)cmdGetParam(obj.msg.get_content()).c_str());
 										std::this_thread::sleep_for(std::chrono::seconds(3));
 										std::string name, status, type;
 										int32_t color;
-										using aegis::create_message_t;
-										using aegis::gateway::objects::embed;
-										using aegis::gateway::objects::field;
-										using aegis::gateway::objects::thumbnail;
-										using aegis::gateway::objects::footer;
 
 										if (CMPSTART("Not online", _cache.discord.find.c_str()))
 										{
@@ -295,6 +340,13 @@ void botInfo::startBotProcess()
 											name = "**" + cmdGetParam(obj.msg.get_content()) + "**";
 											type = "\342\232\240 ERROR";
 											status = "Not a known user on the **SSC network**.";
+										}
+										else if (_cache.discord.find == "")
+										{
+											color = 0xFFFF00;
+											name = "**" + cmdGetParam(obj.msg.get_content()) + "**";
+											type = "\342\232\240 Connection ERROR";
+											status = "**Unable to fetch data (SSC link down)**";
 										}
 										else
 										{
@@ -314,22 +366,21 @@ void botInfo::startBotProcess()
 											}
 										}
 
-										_cache.discord.bot->find_channel(obj.channel)->create_message(create_message_t()
+										_cache.discord.bot->find_channel(obj.channel)->create_message(aegis::create_message_t()
 											.embed(
-												embed()
-												.color(color).thumbnail(thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
+												aegis::gateway::objects::embed()
+												.color(color).thumbnail(aegis::gateway::objects::thumbnail("https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"))
 												.title("\360\237\224\215 Continuum User Lookup").url("https://store.steampowered.com/app/352700")
 												.description(name)
 												.fields
 												({
-													field().name(type).value(status)
+													aegis::gateway::objects::field().name(type).value(status)
 													})
-												.footer(footer("The above lookup was performed by " + std::string(me->name) + " in " + _cache.game.zone))
+												.footer(aegis::gateway::objects::footer("The above lookup was performed by " + std::string(me->name) + " in " + _cache.game.zone))
 											)
 										);
-										_cache.discord.find = "";
+										_cache.discord.find.clear();
 									}
-
 									startCooldown("find", obj.msg.author.id.gets(), 10);
 								}).detach();
 						}
@@ -341,6 +392,10 @@ void botInfo::startBotProcess()
 				else if (obj.msg.get_channel_id() == _cache.discord.flakes.TWSpecChannel)
 					relayChat(obj.msg.author.username, obj.msg.get_content(), 1);
 			}
+			else
+				// MUSIC TICKER:
+				if (obj.msg.get_channel_id() == _cache.discord.flakes.MusicChannelID)
+					parseMusic(obj); 
 
 		});
 

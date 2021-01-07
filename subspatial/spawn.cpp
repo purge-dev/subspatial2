@@ -111,6 +111,16 @@ std::string botInfo::getINIString(int type)
 		GetPrivateProfileString("Webhooks", "DevaMainDiscord", "", key, 128, path);
 		val = key;
 	}
+	else if (type == 13)
+	{
+		GetPrivateProfileString("Channels", "Music", "", key, 128, path);
+		val = key;
+	}
+	else if (type == 14)
+	{
+		GetPrivateProfileString("Channels", "RelayCategory", "", key, 128, path);
+		val = key;
+	}
 	return val;
 }
 
@@ -233,6 +243,37 @@ bool botInfo::isIgnored(String pname)
 	return false;
 }
 
+std::string botInfo::removeMarkdown(std::string name)
+{
+	std::string pName = name;
+	if (pName.find("_") != pName.npos || pName.find("*") != pName.npos || pName.find("||") != pName.npos)
+	{
+		size_t loc[3] = { 0 };
+		for (size_t i = 0; i < pName.length(); i++)
+		{
+			if (pName.find("_", loc[0]) != pName.npos)
+			{
+				loc[0] = pName.find("_", loc[0]);
+				pName.insert(loc[0], "\\");
+				loc[0] = pName.find("_", loc[0]) + 1;
+			}
+			if (pName.find("*", loc[1]) != pName.npos)
+			{
+				loc[1] = pName.find("*", loc[1]);
+				pName.insert(loc[1], "\\");
+				loc[1] = pName.find("*", loc[1]) + 1;
+			}
+			if (pName.find("||", loc[1]) != pName.npos)
+			{
+				loc[2] = pName.find("||", loc[2]);
+				pName.insert(loc[2], "\\");
+				loc[2] = pName.find("||", loc[2]) + 1;
+			}
+		}
+	}
+	return pName;
+}
+
 std::string botInfo::getFreqPlayerNames(int team) // TODO: create a player badge system
 { 
 	std::string ship_emoji[9] =
@@ -247,6 +288,8 @@ std::string botInfo::getFreqPlayerNames(int team) // TODO: create a player badge
 
 		if (!isIgnored((String)jib->name))
 		{
+			std::string pName = removeMarkdown(jib->name);  // remove markdown that may occur in names
+
 			if (team == -1) // spectators
 			{
 				if (jib->ship == 8)
@@ -256,22 +299,22 @@ std::string botInfo::getFreqPlayerNames(int team) // TODO: create a player badge
 						if (isStaff((aegis::snowflake)getKnownAccount(jib->name))) // Linked discord staff
 						{
 							if (CMPSTR((String)jib->name, "tm_master"))
-								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\221 \360\237\217\206 \n");
+								res.append(ship_emoji[jib->ship] + pName + " \360\237\221\221 \360\237\217\206 \n");
 							else if (CMPSTR((String)jib->name, "Purge"))
-								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\233\240 \360\237\221\224 \360\237\217\206 \n");
+								res.append(ship_emoji[jib->ship] + pName + " \360\237\233\240 \360\237\221\224 \360\237\217\206 \n");
 							else
-								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\224 \360\237\217\206 \n");
+								res.append(ship_emoji[jib->ship] + pName + " \360\237\221\224 \360\237\217\206 \n");
 						}
 						else
-							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\217\206 \n");
+							res.append(ship_emoji[jib->ship] + pName + " \360\237\217\206 \n");
 					}
 					else
 						if (CMPSTR((String)jib->name, (String)me->name))
-							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\244\226 \n");
+							res.append(ship_emoji[jib->ship] + pName + " \360\237\244\226 \n");
 						else if (CMPSTR((String)jib->name, "tm_master"))
-							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\221 \n");
+							res.append(ship_emoji[jib->ship] + pName + " \360\237\221\221 \n");
 						else
-							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + "\n");
+							res.append(ship_emoji[jib->ship] + pName + "\n");
 				}
 			}
 			else if (team == jib->team)
@@ -281,25 +324,25 @@ std::string botInfo::getFreqPlayerNames(int team) // TODO: create a player badge
 					if (isStaff((aegis::snowflake)getKnownAccount(jib->name))) // Linked discord staff
 					{
 						if (CMPSTR((String)jib->name, "tm_master"))
-							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\221 \360\237\217\206 \n");
+							res.append(ship_emoji[jib->ship]+ pName + " \360\237\221\221 \360\237\217\206 \n");
 						else if (CMPSTR((String)jib->name, "Purge"))
-							res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\233\240 \360\237\221\224 \360\237\217\206 \n");
+							res.append(ship_emoji[jib->ship] + pName + " \360\237\233\240 \360\237\221\224 \360\237\217\206 \n");
 						else
 							if (CMPSTR((String)jib->name, "Purge"))
-								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\233\240 \360\237\217\206 \n");
+								res.append(ship_emoji[jib->ship] + pName + " \360\237\233\240 \360\237\217\206 \n");
 							else
-								res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\224 \360\237\217\206 \n");
+								res.append(ship_emoji[jib->ship] + pName + " \360\237\221\224 \360\237\217\206 \n");
 					}
 					else
-						res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\217\206 \n");
+						res.append(ship_emoji[jib->ship] + pName + " \360\237\217\206 \n");
 				}
 				else
 					if (CMPSTR((String)jib->name, (String)me->name))
-						res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\244\226 \n");
+						res.append(ship_emoji[jib->ship] + pName + " \360\237\244\226 \n");
 					else if (CMPSTR((String)jib->name, "tm_master"))
-						res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + " \360\237\221\221 \n");
+						res.append(ship_emoji[jib->ship] + pName + " \360\237\221\221 \n");
 					else
-						res.append(ship_emoji[jib->ship].c_str() + (String)jib->name + "\n");
+						res.append(ship_emoji[jib->ship] + pName + "\n");
 			}	
 		}
 		parse = parse->next;
@@ -323,12 +366,18 @@ Player* botInfo::findPlayerByName(char* name) // case insensitive + partial name
 	return found;
 }
 
-std::string botInfo::getMutedPlayers()
+void botInfo::clearScoresCache()
 {
-	std::string res;
-	for (int i = 0; i < _cache.discord.elite.muted.size(); i++)
-		res.append(_cache.discord.elite.muted[i] + ", ");
-	return res;
+	_cache.game.player_bd_list.clear();
+	_cache.game.freq0_score.first.clear();
+	_cache.game.freq0_score.second.clear();
+	_cache.game.freq1_score.first.clear();
+	_cache.game.freq1_score.second.clear();
+	_cache.game.game_score.first.clear();
+	_cache.game.game_score.second.clear();
+	_cache.game.game_time.clear();
+	_cache.game.history_log.clear();
+	_cache.game.winner_msg.clear();
 }
 
 //////// DLL "import" ////////
@@ -481,13 +530,16 @@ void botInfo::gotEvent(BotEvent &event)
 		{
 			Player *p = (Player*)event.p[0];
 
-			String message = ":inbox_tray: **" + (String)p->name + "** has entered the arena **[" + (String)arena + "]**";
+			if (!isIgnored((String)p->name))
+			{
+				String message = ":inbox_tray: **" + (String)p->name + "** has entered the arena **[" + (String)arena + "]**";
 
-			std::thread([=]()
-				{
-					curlChatter("Player Connected", message, 9, _cache.discord.relayWebhook);
-					curlChatter("Player Connected", message, 9, _cache.discord.DevaMainDiscordWebhook);
-				}).detach();
+				std::thread([=]()
+					{
+						curlChatter("Player Connected", message, 9, _cache.discord.relayWebhook);
+						curlChatter("Player Connected", message, 9, _cache.discord.DevaMainDiscordWebhook);
+					}).detach();
+			}
 		}
 		break;
 	case EVENT_PlayerMove:
@@ -563,13 +615,16 @@ void botInfo::gotEvent(BotEvent &event)
 			Player *p = (Player*)event.p[0];
 			killTags(p);
 
-			String message = ":outbox_tray: **" + (String)p->name + "** has left the arena **[" + (String)arena + "]**";
+			if (!isIgnored((String)p->name))
+			{
+				String message = ":outbox_tray: **" + (String)p->name + "** has left the arena **[" + (String)arena + "]**";
 
-			std::thread([=]()
-				{
-					curlChatter("Player Disconnected", message, 10, _cache.discord.relayWebhook);
-					curlChatter("Player Disconnected", message, 10, _cache.discord.DevaMainDiscordWebhook);
-				}).detach();
+				std::thread([=]()
+					{
+						curlChatter("Player Disconnected", message, 10, _cache.discord.relayWebhook);
+						curlChatter("Player Disconnected", message, 10, _cache.discord.DevaMainDiscordWebhook);
+					}).detach();
+			}
 		}
 		break;
 //////// Selfish ////////
@@ -647,7 +702,7 @@ void botInfo::gotEvent(BotEvent &event)
 				if (CMPSTART("This server has been online for", response.c_str()))
 					_cache.statistics.zone_uptime = response.substr(response.find("for") + 4, response.npos - response.find("for") + 4);
 
-				// collects ?find output
+				// collects ?find output (only in SSC)
 				if (response.find("Not online,") != response.npos)
 					_cache.discord.find = response;
 				if (response.find(" is in SSC") != response.npos || (response.find(" is in arena") != response.npos))
@@ -665,21 +720,15 @@ void botInfo::gotEvent(BotEvent &event)
 				if (countdown[0] > 0) break;
 
 				if (!strcmp(msg, "Team [1]1 Wins!"))
-					_cache.game.winner_msg = "Freq 1 Wins";
+					_cache.game.winner_msg = "Freq 1 Wins!";
 				else if (!strcmp(msg, "Team [0]0 Wins!"))
-					_cache.game.winner_msg = "Freq 0 Wins";
+					_cache.game.winner_msg = "Freq 0 Wins!";
 				
 				if (msg[0] == '|')
 				{
-					if ((msg[3] == 'P') && (msg[23] == 'K') && (msg[30] == 'L')) // parse out heading line
-					{
-					}
-					else if ((msg[11] == '_') && (msg[12] == ',') && (msg[13] == '.')) // parse out
-					{
-					}
-					else if ((msg[20] == '+') && (msg[11] == '-') && (msg[12] == '-')) // parse out
-					{
-					}
+					if ((msg[3] == 'P') && (msg[23] == 'K') && (msg[30] == 'L')) {} // parse out heading line
+					else if ((msg[11] == '_') && (msg[12] == ',') && (msg[13] == '.')) {} // parse out
+					else if ((msg[20] == '+') && (msg[11] == '-') && (msg[12] == '-')) {} // parse out
 					else if ((msg[1] == '[') && (msg[2] == '0') && (msg[3] == ']')) // team 0 K/L
 						_cache.game.freq0_score = parseFreqBDStats(response);
 					else if ((msg[1] == '[') && (msg[2] == '1') && (msg[3] == ']')) // team 1 K/L
@@ -706,24 +755,25 @@ void botInfo::gotEvent(BotEvent &event)
 							aegis::gateway::objects::footer foot; foot.icon_url = "https://cdn.discordapp.com/avatars/580330179831005205/49035f8777ff7dc50c44bf69e99b30bb.png"; foot.text = "Subspatial v" + (std::string)BOT_VER + " | Created by Purge";
 							aegis::gateway::objects::image img; img.url = _cache.game.snapshots[randomizer(_cache.game.snapshots.size())];
 							
-							_cache.discord.bot->find_channel(_cache.discord.flakes.relayChannel)->create_message(
+							_cache.discord.bot->find_channel(_cache.discord.flakes.mainChannelID)->create_message(
 								create_message_t()
 								.embed(
 									embed()
 									.color((CMPSTART("Freq 1", _cache.game.winner_msg.c_str()) ? 0x0000FF : 0xFF0000)).thumbnail(thumbnail("https://cdn.discordapp.com/emojis/588304373801680904.gif"))
-									.title(_cache.game.winner_msg + " (" + _cache.game.game_time + ")").url("https://store.steampowered.com/app/352700")
-									.description("\360\237\222\245 **FINAL SCORE:** " + _cache.game.game_score.first + " - " + _cache.game.game_score.second + " \360\237\222\245\n``Baseduel History Log: #" + _cache.game.history_log + "``")
+									.title("\360\237\222\245 " + _cache.game.winner_msg + " (" + _cache.game.game_time + ") \360\237\222\245").url("https://store.steampowered.com/app/352700")
+									.description("**FINAL SCORE:** " + _cache.game.game_score.first + " - " + _cache.game.game_score.second + "\n``Baseduel History Log: #" + _cache.game.history_log + "``")
 									.fields
 									({
-										field().name("Freq 0 (K - L)").value(((getBDPlayersAndScores(0) != "") ? "```css\n" + getBDPlayersAndScores(0) + "\n```" : "```css\n[ERROR]\n```")).is_inline(true),
+										field().name("Freq 0 (" + _cache.game.freq0_score.first + " - " + _cache.game.freq0_score.second + ")").value(((getBDPlayersAndScores(0) != "") ? "```css\n" + getBDPlayersAndScores(0) + "\n```" : "```css\n[ERROR]\n```")).is_inline(true),
 
-										field().name("Freq 1 (K - L)").value(((getBDPlayersAndScores(1) != "") ? "```css\n" + getBDPlayersAndScores(1) + "\n```" : "```css\n[ERROR]\n```")).is_inline(true)
+										field().name("Freq 1 (" + _cache.game.freq1_score.first + " - " + _cache.game.freq1_score.second + ")").value(((getBDPlayersAndScores(1) != "") ? "```css\n" + getBDPlayersAndScores(1) + "\n```" : "```css\n[ERROR]\n```")).is_inline(true)
 
 										})
 									.image(img)
 									.footer(foot)
 								)
-							);							
+							);	
+							clearScoresCache(); // clean up collected data
 						}).detach();
 				}
 				}
