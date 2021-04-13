@@ -292,7 +292,7 @@ void botInfo::startBotProcess()
 												aegis::gateway::objects::field().name("\360\237\216\256 " + _cache.game.zone.substr(0, _cache.game.zone.find_last_of("."))).value("**Current Arena:** " + _cache.game.arena +
 													"\n**Total Playing:** " + std::to_string(countPlayers(1).first + countPlayers(1).second) + "\n**Total Spectators:** " + std::to_string(countPlayers(0).second)).is_inline(true),
 
-												aegis::gateway::objects::field().name("\360\237\217\206 Elite Tier").value("**Newest Member:** " + _cache.discord.elite.accounts.front().second
+												aegis::gateway::objects::field().name("\360\237\217\206 Elite Tier").value("**Newest Member:** " + _cache.discord.elite.accounts.back().second
 													+ "\n**Total Users:** " + std::to_string(_cache.discord.elite.accounts.size())).is_inline(true),
 
 												aegis::gateway::objects::field().name("\342\232\231 Server Stats").value("**Zone Uptime:** " + ((_cache.statistics.zone_uptime != "") ? _cache.statistics.zone_uptime : "``ERROR``") +
@@ -354,9 +354,23 @@ void botInfo::startBotProcess()
 											name = "**" + _cache.discord.find.substr(0, _cache.discord.find.find(" is in")) + "**";
 											if (_cache.discord.find.find(" is in arena") != _cache.discord.find.npos)
 											{
+												std::string arena_str = _cache.discord.find.substr(_cache.discord.find.find(" is in arena ") + 13, _cache.discord.find.npos -
+													_cache.discord.find.find(" is in arena "));
 												type = "\342\234\205 ONLINE";
-												status = "Currently in arena **" + _cache.discord.find.substr(_cache.discord.find.find(" is in arena ") + 13, _cache.discord.find.npos -
-													_cache.discord.find.find(" is in arena ")) + "**";
+
+												if (!strcmp(arena_str.c_str(), "TrenchWars."))
+													status = "Currently in **SSCU Trench Wars**";
+												else if (!strcmp(arena_str.c_str(), "ExtremeGames."))
+													status = "Currently in **SSCU Extreme Games**";
+												else if (!strcmp(arena_str.c_str(), "Hyperspace."))
+													status = "Currently in **SSCE Hyperspace**";
+												else if (!strcmp(arena_str.c_str(), "ChaosZone."))
+													status = "Currently in **SSCE Hyperspace**";
+												else if (!strcmp(arena_str.c_str(), "DeathStarBattle."))
+													status = "Currently in **SSCU Death Star Battle**";
+
+												else
+													status = "Currently in arena **" + arena_str + "**";
 											}
 											else
 											{

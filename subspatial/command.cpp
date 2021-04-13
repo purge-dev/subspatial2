@@ -389,7 +389,7 @@ void botInfo::gotCommand(Player *p, Command *c)
 			else
 			{
 				sendPrivate(p, "This command is only available to Elite accounts. Type !link for more info.");
-				sendPrivate(p, "[NOTE] You may use !extra if you do not wish to link your Discord/Continuum accounts.");
+				sendPrivate(p, "[NOTE] You may use !extra if you do not wish to link your Discord/Continuum accounts."); 
 			}
 		}
 		else if (c->check("extra"))

@@ -307,13 +307,26 @@ void botInfo::updateOnlineList()
 	std::string spec_players = getFreqPlayerNames(-1);
 
 	// topic ratelimited at 2/10 min -> adjust cooldown[1]
-	_cache.discord.bot->find_channel(aegis::snowflake::snowflake(_cache.discord.flakes.relayChannel))->modify_channel(std::nullopt, std::nullopt,
-		":video_game: **__Arena__** (" + _cache.game.arena + ") | **__Total Players__** (" +
+	// TODO: crashes if string > 1024 chars?
+	std::string online_list_str = ":video_game: **__Arena__** (" + _cache.game.arena + ") | **__Total Players__** (" +
 		zone_count + ") | **__Spectators__** (" + spec_count +
 		") | **__CLICK HERE__** for the full online list!\n\n" +
-		"**__Spectators__**\n" + spec_players +
-		freq0players + freq1players + "\n\n **Note:** This list is updated every 5 minutes due to current rate limits.",
-		std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
+		"**__Spectators__**\n" + spec_players + freq0players + freq1players;
+
+	if (online_list_str.length() < 1024)
+		_cache.discord.bot->find_channel(aegis::snowflake::snowflake(_cache.discord.flakes.relayChannel))->modify_channel(std::nullopt, std::nullopt,
+			online_list_str, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
+
+	else
+	{
+		online_list_str = ":video_game: **__Arena__** (" + _cache.game.arena + ") | **__Total Players__** (" +
+			zone_count + ") | **__Spectators__** (" + spec_count +
+			") | **__CLICK HERE__** for the full online list!\n\n" +
+			freq0players + freq1players;
+
+		_cache.discord.bot->find_channel(aegis::snowflake::snowflake(_cache.discord.flakes.relayChannel))->modify_channel(std::nullopt, std::nullopt,
+			online_list_str, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
+	}
 
 	_cache.discord.bot->find_channel(_cache.discord.flakes.relayCategory)->modify_channel("\360\237\222\254 Zone Chat (" + zone_count + " Online)", std::nullopt, std::nullopt,
 		std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt, std::nullopt);
